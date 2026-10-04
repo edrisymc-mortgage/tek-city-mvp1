@@ -77,7 +77,7 @@ function slate() {
   x.fillStyle = "rgba(236,234,228,.45)"; x.font = `500 26px ${MONO}`;
   x.fillText("PUMP.FUN LAUNCHPAD  ·  SOLANA  ·  BETA", S / 2, 262);
   x.fillStyle = "rgba(236,234,228,.35)"; x.font = `500 22px ${MONO}`;
-  x.fillText("COMMUNITY POOL", S / 2, S - 150);
+  x.fillText("FREE SPINS · BETA", S / 2, S - 150);
   return tex(c);
 }
 

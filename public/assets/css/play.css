@@ -223,3 +223,15 @@ textarea.txt { resize: vertical; }
 .toast .dice { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; background: var(--text); color: var(--bg); font: 600 13px var(--font-mono); flex: none; }
 @keyframes tin { from { opacity: 0; transform: translateY(-6px); } }
 @media (prefers-reduced-motion: reduce) { .toast { animation: none; } .drawer, .scrim { transition: none; } }
+.get-wallets { display: flex; gap: 6px; flex-wrap: wrap; }
+.get-wallets .btn { width: auto; }
+.wallet-state { display: grid; gap: 12px; padding: 14px; border: 1px solid var(--line2); border-radius: var(--r); margin: 12px 0; }
+.wallet-state .k { display: block; font: 500 10px var(--font-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--pos); }
+.wallet-state b { display: block; font-size: 18px; font-weight: 500; margin-top: 2px; }
+.wallet-state small { color: var(--text3); font-size: 12px; }
+.wallet-state .acts { display: flex; gap: 8px; }
+.wallet-state .acts .btn { width: auto; }
+.modal .kv { margin-top: 14px; }
+.fee-list { list-style: none; margin: 12px 0 0; padding: 0; }
+.fee-list li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); }
+.fee-list li small { text-align: right; max-width: 55%; }

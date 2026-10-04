@@ -46,14 +46,17 @@ const pub = (p, address, via) => p && ({
   followers: Number(p.followers) || 0, url: `https://pump.fun/profile/${address}`,
 });
 
-function build() {
+function build(config) {
   const r = express.Router();
+  // Bio-code linking proves control of a pump.fun profile, not of the wallet's keys, so it's off unless
+  // FEATURE_PUMP_BIO_LINK=true. Identity for spins, rewards and buys comes only from wallet signatures.
+  const bioLinkOn = (_req, _res, next) => (config.launchpad.pumpBioLink ? next() : next(new (require("../security/util").UserError)(404, "feature_disabled", "Connect the Solana wallet you use on pump.fun instead.")));
   r.use(sessions.csrf);
 
   r.get("/pump/me", sessions.requireUser, limit("api_read", userKey), wrap(async (req, res) => {
     const uid = req.session.user_id;
     const link = (await db.query(`SELECT * FROM pump_links WHERE user_id = $1`, [uid])).rows[0];
-    if (link && link.verified_at) {
+    if (link && link.verified_at && config.launchpad.pumpBioLink) {
       const p = await profile(link.address).catch(() => null);
       return res.json({ linked: true, profile: pub(p || { username: link.username, profile_image: link.avatar }, link.address, "bio"), coins: await coinsBy(link.address) });
     }
@@ -62,10 +65,10 @@ function build() {
       const p = await profile(w.address).catch(() => null);
       if (p) return res.json({ linked: true, profile: pub(p, w.address, "wallet"), coins: await coinsBy(w.address) });
     }
-    res.json({ linked: false, pending: link ? { address: link.address, code: link.code } : null });
+    res.json({ linked: false, bioLink: !!config.launchpad.pumpBioLink, pending: link && config.launchpad.pumpBioLink ? { address: link.address, code: link.code } : null });
   }));
 
-  r.post("/pump/link/start", sessions.requireUser, limit("game_action_user", userKey), wrap(async (req, res) => {
+  r.post("/pump/link/start", bioLinkOn, sessions.requireUser, limit("game_action_user", userKey), wrap(async (req, res) => {
     const raw = String((req.body && req.body.address) || "").trim();
     const m = raw.match(/[1-9A-HJ-NP-Za-km-z]{32,44}/);
     const address = m && normalizeAddress(m[0]);
@@ -82,7 +85,7 @@ function build() {
     res.json({ address, code, username: p.username || null });
   }));
 
-  r.post("/pump/link/verify", sessions.requireUser, limit("game_action_user", userKey), wrap(async (req, res) => {
+  r.post("/pump/link/verify", bioLinkOn, sessions.requireUser, limit("game_action_user", userKey), wrap(async (req, res) => {
     const uid = req.session.user_id;
     const link = (await db.query(`SELECT * FROM pump_links WHERE user_id = $1`, [uid])).rows[0];
     if (!link) fail(404, "no_link", "Start by pasting your pump.fun profile link.");

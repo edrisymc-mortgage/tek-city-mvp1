@@ -71,7 +71,7 @@ async function cityState() {
     players: playersR.rows,
     coins: coinR.rows.map((c) => ({
       stop: c.stop_id, mint: c.mint, name: c.name, symbol: c.symbol, image: c.has_image ? `/api/coin-img/${c.stop_id}?m=${c.mint.slice(0, 8)}` : null,
-      launcher: c.launcher, launcherWallet: shortAddress(c.launcher_wallet), ready: c.split_done || !(CFG.launchpad.communityWallet || CFG.rewards.walletSecret),
+      launcher: c.launcher, launcherWallet: shortAddress(c.launcher_wallet), ready: true,
       grownLamports: Number(c.grown_lamports), grows: c.grow_count, takeoverLamports: Math.max(Number(c.top_buy_lamports), Number(c.launch_lamports)), holder: c.holder || null,
       pumpUrl: `https://pump.fun/coin/${c.mint}`,
     })),
@@ -108,7 +108,7 @@ async function me(session) {
   const [pR, bR, wR, rR, cs] = await Promise.all([
     db.query(`SELECT * FROM player_resources WHERE user_id = $1`, [uid]),
     db.query(`SELECT c.id, c.name, c.description, ub.earned_at FROM user_badges ub JOIN cosmetics c ON c.id = ub.cosmetic_id WHERE ub.user_id = $1 ORDER BY ub.earned_at`, [uid]),
-    db.query(`SELECT address FROM wallet_accounts WHERE user_id = $1 AND unlinked_at IS NULL`, [uid]),
+    db.query(`SELECT address, wallet_name FROM wallet_accounts WHERE user_id = $1 AND unlinked_at IS NULL`, [uid]),
     db.query(`SELECT * FROM game_rounds WHERE status = 'open' ORDER BY id DESC LIMIT 1`),
     db.query(`SELECT paused, day FROM city_state WHERE id = 1`),
   ]);
@@ -122,12 +122,13 @@ async function me(session) {
   const closed = !round || new Date(round.ends_at) <= new Date();
   const why = (cond, reason) => (cond ? null : reason);
   const sp = await spins.status(uid).catch(() => ({ enabled: false }));
+  const hold = await spins.holderStatus(uid).catch(() => null);
   const general = paused ? "The city is paused for maintenance." : closed ? "This round is closing. The next one opens in a moment." : null;
   const can = {
     checkin: general || why(String(p.last_checkin_round) !== rid, "Already checked in this round."),
     move: sp.enabled
       ? general || why(!!sp.wallet, "Link your wallet to spin.") || why(sp.left > 0, `No spins left. Buy ${sp.tokensPerSpin.toLocaleString()} TEK CITY or pass START for another.`)
-      : CFG.launchpad.enabled ? general || why(String(p.last_move_round) !== rid || (p.bonus_left || 0) > 0, "Free spin used. Next one at the tick.")
+      : CFG.launchpad.enabled ? general || (hold ? why(!!hold.wallet, "Connect a Solana wallet to spin.") || why(hold.eligible, `Free spins need ${hold.required.toLocaleString()} TEK CITY in your wallet.`) : null) || why(String(p.last_move_round) !== rid || (p.bonus_left || 0) > 0, "Free spin used. Next one at the tick.")
       : general || why(String(p.last_move_round) !== rid, "Already moved this round.") || why(p.energy >= RULES.moveCost, `Needs ${RULES.moveCost} Energy.`),
     contribute: general || why(contribCount < RULES.contributionsPerRound, `All ${RULES.contributionsPerRound} contributions used this round.`) || why(p.energy >= RULES.contributeCost, "Needs 1 Energy.") || why(p.build_credits >= RULES.minContribution, `Needs at least ${RULES.minContribution} Build Credits.`),
     vote: general || why(ev && ev.kind === "brief", "No City Brief this round (crisis in progress).") || why(String(p.last_vote_round) !== rid, "Already voted this round."),
@@ -137,14 +138,14 @@ async function me(session) {
     signedIn: true,
     user: {
       name: session.display_name, kind: session.user_kind, seed: session.avatar_seed, authMethod: session.auth_method,
-      wallet: wR.rows[0] ? { address: wR.rows[0].address, short: shortAddress(wR.rows[0].address) } : null,
+      wallet: wR.rows[0] ? { address: wR.rows[0].address, short: shortAddress(wR.rows[0].address), name: wR.rows[0].wallet_name || null } : null,
     },
     resources: { energy: p.energy, maxEnergy: RULES.maxEnergy, build_credits: p.build_credits, influence: p.influence, influence_today: influenceToday },
     position: p.position,
     onSite: String(p.visited_round) === rid ? p.position : null,
     contributionsLeft: RULES.contributionsPerRound - contribCount,
     tutorialDone: p.tutorial_done,
-    spins: sp.enabled ? sp : { ...sp, perRound: true, left: (String(p.last_move_round) !== rid ? 1 : 0) + (p.bonus_left || 0), bonus: p.bonus_total || 0 },
+    spins: sp.enabled ? sp : { ...sp, perRound: true, holder: hold, left: ((!hold || hold.eligible) && String(p.last_move_round) !== rid ? 1 : 0) + (p.bonus_left || 0), bonus: p.bonus_total || 0 },
     badges: bR.rows,
     can,
     csrf: session.csrf_token,

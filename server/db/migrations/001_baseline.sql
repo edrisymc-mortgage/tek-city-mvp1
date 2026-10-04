@@ -1,0 +1,1 @@
+-- 001: baseline is server/db/schema.sql (idempotent CREATE ... IF NOT EXISTS). Kept for numbering.

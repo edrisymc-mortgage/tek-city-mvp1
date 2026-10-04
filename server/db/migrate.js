@@ -24,6 +24,18 @@ const COSMETICS = [
 async function migrate(config) {
   const sql = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf8");
   await db.query(sql);
+  // Numbered migrations in server/db/migrations, applied once each, in order.
+  await db.query(`CREATE TABLE IF NOT EXISTS schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`);
+  const dir = path.join(__dirname, "migrations");
+  const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => /^\d+_.+\.sql$/.test(f)).sort() : [];
+  for (const f of files) {
+    const done = (await db.query(`SELECT 1 FROM schema_migrations WHERE name = $1`, [f])).rows[0];
+    if (done) continue;
+    await db.tx(async (c) => {
+      await c.query(fs.readFileSync(path.join(dir, f), "utf8"));
+      await c.query(`INSERT INTO schema_migrations (name) VALUES ($1)`, [f]);
+    });
+  }
   await db.tx(async (c) => {
     for (const s of DISTRICT_STOPS) {
       await c.query(
@@ -58,6 +70,13 @@ async function migrate(config) {
     for (const raw of config.adminWallets) {
       const a = normalizeAddress(raw);
       if (a) await c.query(`INSERT INTO admin_wallets (address, source) VALUES ($1, 'env') ON CONFLICT DO NOTHING`, [a]);
+    }
+    // Community Fund roles from ADMIN_WALLET_ROLES ("<address>:role|role;<address>:role"). Only allowlisted admins.
+    await c.query(`DELETE FROM admin_roles WHERE source = 'env'`);
+    for (const { address, roles } of config.adminRoles) {
+      const a = normalizeAddress(address);
+      if (!a || !config.adminWallets.includes(a)) continue;
+      for (const role of roles) await c.query(`INSERT INTO admin_roles (address, role, source) VALUES ($1,$2,'env') ON CONFLICT DO NOTHING`, [a, role]);
     }
   });
 }

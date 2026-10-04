@@ -10,7 +10,8 @@ const { fail } = require("../security/util");
 
 let CFG = null;
 function configure(config) { CFG = config; }
-const enabled = () => !!(CFG && CFG.spins.mint);
+const enabled = () => !!(CFG && CFG.spins.mint && CFG.spins.mode === "bought");
+const holderMode = () => !!(CFG && CFG.spins.mint && CFG.spins.mode !== "bought");
 
 const FEE_SLACK = 100000; // lamports: more than any normal tx fee + priority fee
 const lastScan = new Map(); // wallet -> ms
@@ -19,7 +20,7 @@ const scanning = new Map(); // wallet -> promise
 async function walletsFor(userId) {
   const r = await db.query(
     `SELECT address FROM wallet_accounts WHERE user_id = $1 AND unlinked_at IS NULL
-     UNION SELECT address FROM pump_links WHERE user_id = $1 AND verified_at IS NOT NULL`, [userId]);
+     ${CFG && CFG.launchpad.pumpBioLink ? "UNION SELECT address FROM pump_links WHERE user_id = $1 AND verified_at IS NOT NULL" : ""}`, [userId]);
   return [...new Set(r.rows.map((x) => x.address))];
 }
 
@@ -100,6 +101,29 @@ async function requireSpin(userId) {
   return s;
 }
 
+// Holder mode: the per-round free spin requires a signed-in wallet (signature-verified, from the session's
+// account) holding at least TOKENS_PER_SPIN of OFFICIAL_TOKEN_MINT. Balance is re-read from chain each time.
+async function signedWallets(userId) {
+  const r = await db.query(`SELECT address FROM wallet_accounts WHERE user_id = $1 AND unlinked_at IS NULL`, [userId]);
+  return r.rows.map((x) => x.address);
+}
+async function holderStatus(userId, { fresh = false } = {}) {
+  if (!holderMode()) return null;
+  const need = CFG.spins.tokensPerSpin, wallets = await signedWallets(userId);
+  let balance = 0;
+  for (const w of wallets) { if (fresh) sol.bustBalance(w, CFG.spins.mint); balance += await sol.tokenBalance(w, CFG.spins.mint); }
+  return { required: need, balance, eligible: wallets.length > 0 && balance >= need, wallet: wallets[0] || null, mint: CFG.spins.mint };
+}
+async function requireHolder(userId) {
+  if (!holderMode()) return null;
+  let h;
+  try { h = await holderStatus(userId, { fresh: true }); }
+  catch { fail(503, "rpc_error", "Couldn't check your TEK CITY balance on Solana right now. Try again in a moment."); }
+  if (!h.wallet) fail(403, "wallet_required", "Connect a Solana wallet to spin.");
+  if (!h.eligible) fail(403, "holder_required", `Free spins are for wallets holding at least ${h.required.toLocaleString()} TEK CITY. This wallet holds ${Math.floor(h.balance).toLocaleString()}.`);
+  return h;
+}
+
 function bust(wallet) { if (wallet) { lastScan.delete(wallet); if (CFG && CFG.spins.mint) sol.bustBalance(wallet, CFG.spins.mint); } }
 
-module.exports = { configure, enabled, status, requireSpin, bust, isBuy };
+module.exports = { configure, enabled, holderMode, holderStatus, requireHolder, status, requireSpin, bust, isBuy };

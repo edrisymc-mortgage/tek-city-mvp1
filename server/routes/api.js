@@ -12,7 +12,6 @@ const v = require("../security/validate");
 const { fail, ipHash, randomToken } = require("../security/util");
 const { audit, activity, flagAbuse } = require("../audit");
 const spins = require("../game/spins");
-const rewards = require("../chain/rewards");
 
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 const ipKey = (req) => `ip:${ipHash(req)}`;
@@ -99,8 +98,10 @@ function build(config, { notify }) {
       nonce: { type: "string", min: 32, max: 32 },
       signature: { type: "string", min: 64, max: 120 },
       purpose: { type: "enum", values: ["login", "reauth"], optional: true },
+      walletName: { type: "string", max: 40, optional: true, pattern: /^[\p{L}\p{N} ._-]*$/u },
     });
     const address = normalizeAddress(body.address);
+    const walletName = body.walletName || null;
     if (!address) fail(400, "bad_address", "That is not a valid Solana wallet address.");
     // per-wallet verify limit
     rateCheck("auth_verify_wallet", `w:${address}`, req);
@@ -125,7 +126,7 @@ function build(config, { notify }) {
         userId = existing.user_id;
         const banned = (await c.query(`SELECT is_banned FROM users WHERE id = $1`, [userId])).rows[0];
         if (banned && banned.is_banned) return { ok: false, reason: "banned" };
-        await c.query(`UPDATE wallet_accounts SET last_login_at = now() WHERE address = $1`, [address]);
+        await c.query(`UPDATE wallet_accounts SET last_login_at = now(), updated_at = now(), wallet_name = COALESCE($2, wallet_name) WHERE address = $1`, [address, walletName]);
       } else {
         const maxWallets = Number((await c.query(`SELECT value FROM app_settings WHERE key = 'max_wallets_per_account'`)).rows[0]?.value ?? 1);
         const cur = req.session.user_id;
@@ -142,7 +143,7 @@ function build(config, { notify }) {
           await engine.ensurePlayer(c, userId);
         }
         // UNIQUE(address) enforces one account per wallet even under races.
-        await c.query(`INSERT INTO wallet_accounts (user_id, address, network) VALUES ($1,$2,$3)`, [userId, address, config.solana.network]);
+        await c.query(`INSERT INTO wallet_accounts (user_id, address, network, wallet_name) VALUES ($1,$2,$3,$4)`, [userId, address, config.solana.network, walletName]);
         await audit(c, { actorUserId: userId, actorWallet: address, action: "wallet.linked", details: { upgradedGuest: linkToGuest }, ipHash: ih });
       }
       await engine.grantBadge(c, userId, "verified-builder");
@@ -201,12 +202,12 @@ function build(config, { notify }) {
     const payload = v.obj(req.body || {}, SHAPES[type]);
     const key = v.idempotencyKey(req);
     let spin = type === "move" ? await spins.requireSpin(req.session.user_id) : null;
-    if (!spin && type === "move" && config.launchpad.enabled) spin = { perRound: true, earned: Number.MAX_SAFE_INTEGER, wallet: null };
+    if (!spin && type === "move" && config.launchpad.enabled) {
+      const h = await spins.requireHolder(req.session.user_id); // null unless OFFICIAL_TOKEN_MINT is set (holder mode)
+      spin = { perRound: true, earned: Number.MAX_SAFE_INTEGER, wallet: h ? h.wallet : null, holder: h };
+    }
     if ((spins.enabled() || config.launchpad.enabled) && (type === "checkin" || type === "contribute")) fail(410, "removed", "Game credits are gone. Launch or grow coins on the space you land on.");
     const result = await engine.performAction(req.session.user_id, type, payload, key, { ipHash: ipHash(req), spin });
-    if (result.jackpot && !result.replayed && spin && spin.wallet) {
-      result.jackpotWin = await rewards.jackpot({ userId: req.session.user_id, wallet: spin.wallet, name: req.session.display_name, roundId: null }).catch(() => ({ lamports: 0 }));
-    }
     notify();
     res.json(result);
   }));

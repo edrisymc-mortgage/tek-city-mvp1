@@ -2,7 +2,7 @@
 // in their own wallet. The server builds and verifies transactions; the wallet signs them.
 import { api } from "./lib/api.js";
 import { h, icon, clear } from "./lib/dom.js";
-import { walletFor, signTx } from "./lib/wallet.js";
+import { walletFor, signTx, shortAddr } from "./lib/wallet.js";
 
 const add = (el, ...nodes) => el.append(...nodes.flat().filter((n) => n !== null && n !== undefined && n !== false));
 export const sol = (l) => (Number(l) / 1e9).toLocaleString(undefined, { maximumFractionDigits: 3 });
@@ -10,16 +10,32 @@ const toLamports = (v) => Math.round(Number(v) * 1e9);
 
 export function coinAt(city, stopId) { return (city.coins || []).find((c) => c.stop === stopId) || null; }
 
-// Run one server-built transaction through the wallet and submit it.
-async function signAndSubmit(S, prep, status) {
+// Run one server-built transaction: show the review, have the wallet sign it, submit, wait for Solana.
+async function signAndSubmit(S, prep, status, ctx) {
   const wallet = S.me.user.wallet && S.me.user.wallet.address;
-  if (!wallet) throw new Error("Link your wallet first.");
-  status("Opening your wallet. Review the transaction and approve it.");
+  if (!wallet) throw new Error("Connect a Solana wallet first.");
+  if (prep.review && !(await ctx.review(prep.review))) { status("Cancelled. Nothing was signed or sent."); const e = new Error("Cancelled. Nothing was signed or sent."); e.quiet = true; throw e; }
+  status("Opening your wallet. Check the details and approve.");
   const handle = await walletFor(wallet, S.wallet);
   S.wallet = handle.w;
-  const signedTx = await signTx(handle, prep.transaction);
+  let signedTx;
+  try { signedTx = await signTx(handle, prep.transaction, (S.config && S.config.solanaNetwork) || "mainnet-beta"); }
+  catch (e) { const er = new Error(/reject|denied|cancel|declin/i.test(String(e && e.message)) ? "You declined in your wallet. Nothing was sent." : (e && e.message) || "Your wallet couldn't sign this transaction."); er.quiet = /declined/.test(er.message); throw er; }
   status("Sent. Waiting for Solana to confirm…");
-  return api.post("/api/launchpad/submit", { intentId: prep.intentId, signedTx });
+  const r = await api.post("/api/launchpad/submit", { intentId: prep.intentId, signedTx });
+  if (r.pending) return waitPending(r, status);
+  if (r.ok === false) throw new Error(r.message);
+  return r;
+}
+async function waitPending(r, status) {
+  for (let i = 0; i < 8; i++) {
+    status(`Waiting for Solana to confirm ${shortAddr(r.signature)}. Nothing is credited until it confirms.`);
+    await new Promise((res) => setTimeout(res, 15000));
+    const x = await api.post("/api/launchpad/recheck", { signature: r.signature });
+    if (x.ok) return x;
+    if (!x.pending) throw new Error(x.message);
+  }
+  throw new Error(`Still not confirmed. Signature ${r.signature}. We'll keep checking in the background.`);
 }
 
 function readImage(file) {
@@ -48,7 +64,7 @@ export function renderCoinSection(body, S, s, ctx) {
   const wrap = h("div", { class: "coin-sec" });
   add(body, wrap);
   if (s.type === "station") { add(wrap, h("p", { class: "small ink2" }, "START. Every time you pass or land here you get a free spin.")); return; }
-  if (s.type === "vault") add(wrap, h("div", { class: "jackpot-note" }, icon("vault"), h("span", {}, h("b", {}, "Jackpot space. "), "Land here on a spin to win 60% of the community pool.")));
+  if (s.type === "vault") add(wrap, h("div", { class: "jackpot-note" }, icon("vault"), h("span", {}, h("b", {}, "Bonus spin. "), "Land here on a spin for +1 free spin.")));
 
   if (coin) {
     add(wrap, h("div", { class: "coin-card" },
@@ -57,36 +73,35 @@ export function renderCoinSection(body, S, s, ctx) {
         h("small", {}, `Launched by ${coin.launcher || coin.launcherWallet}`)),
       h("a", { class: "btn btn-ghost btn-sm", href: coin.pumpUrl, target: "_blank", rel: "noopener" }, icon("external-link"), "Pump.fun")),
     h("div", { class: "kv" },
-      h("div", {}, h("div", { class: "k" }, "Grown on this space"), h("div", { class: "v" }, `${sol(coin.grownLamports)} SOL`)),
+      h("div", {}, h("div", { class: "k" }, "SOL bought here"), h("div", { class: "v" }, `${sol(coin.grownLamports)} SOL`)),
       h("div", {}, h("div", { class: "k" }, "Buy-ins"), h("div", { class: "v" }, String(coin.grows + 1))),
       h("div", {}, h("div", { class: "k" }, "Holding the spot"), h("div", { class: "v" }, coin.holder || "Open")),
       h("div", {}, h("div", { class: "k" }, "Take-over price"), h("div", { class: "v" }, `${sol(coin.takeoverLamports)} SOL`))));
-    if (!coin.ready) add(wrap, h("div", { class: "reason" }, icon("info"), "Waiting for the launcher to confirm the 80/20 community fee split."));
   } else add(wrap, h("p", { class: "lede-sm" }, "No coin here yet. Launch one and this space becomes your coin."));
 
   if (!L.enabled) { add(wrap, h("div", { class: "reason" }, icon("info"), "The launchpad opens soon.")); return; }
-  if (!m.signedIn) { add(wrap, h("button", { class: "btn btn-primary", onclick: ctx.signIn }, icon("wallet"), "Connect Phantom to play")); return; }
-  if (!hasWallet) { add(wrap, h("button", { class: "btn btn-primary", onclick: ctx.linkWallet }, icon("wallet"), "Link Phantom to launch or grow coins")); return; }
-  if (!onSpace) { add(wrap, h("div", { class: "reason" }, icon("dice-5"), "Land on this space with a spin to launch or grow here.")); return; }
+  if (!m.signedIn) { add(wrap, h("button", { class: "btn btn-primary", onclick: ctx.signIn }, icon("wallet"), "Connect Solana Wallet")); return; }
+  if (!hasWallet) { add(wrap, h("button", { class: "btn btn-primary", onclick: ctx.linkWallet }, icon("wallet"), "Connect Solana Wallet to launch or buy")); return; }
+  if (!onSpace) { add(wrap, h("div", { class: "reason" }, icon("dice-5"), "Land on this space with a spin to launch or buy here.")); return; }
 
   const status = h("p", { class: "small ink2 lp-status", role: "status" });
   const say = (t) => { status.textContent = t; };
   const run = async (btn, fn) => {
     if (S.busy) return; S.busy = true; btn.disabled = true;
-    try { await fn(); } catch (e) { say(/reject|denied|cancel/i.test(String(e.message)) ? "Cancelled in your wallet. Nothing was sent." : e.message); ctx.toast(e.message, "err"); }
+    try { await fn(); } catch (e) { say(e.message); if (!e.quiet) ctx.toast(e.message, "err"); }
     finally { S.busy = false; btn.disabled = false; await ctx.refresh(); }
   };
 
   // ---- grow
   if (coin && coin.ready) {
     const f = amountField(L.minBuyLamports, L.maxBuyLamports, Math.min(L.maxBuyLamports, 100_000_000));
-    const btn = h("button", { class: "btn btn-primary", type: "button" }, icon("trending-up"), `Grow $${coin.symbol}`);
+    const btn = h("button", { class: "btn btn-primary", type: "button" }, icon("trending-up"), `Buy $${coin.symbol} with SOL`);
     btn.onclick = () => run(btn, async () => {
       const prep = await api.post("/api/launchpad/grow", { stopId: s.id, lamports: toLamports(f.input.value) });
-      const r = await signAndSubmit(S, prep, say);
+      const r = await signAndSubmit(S, prep, say, ctx);
       say(r.message); ctx.toast(r.message, "gold");
     });
-    add(wrap, h("div", { class: "lp-block" }, h("h4", {}, `Grow $${coin.symbol}`), h("p", { class: "small ink2" }, "Buy into this coin on Pump.fun. Your buy is added to this space's total."), f.el, btn));
+    add(wrap, h("div", { class: "lp-block" }, h("h4", {}, "Buy with SOL"), h("p", { class: "small ink2" }, `Buy $${coin.symbol} on Pump.fun from your connected wallet. You'll see the exact amount, fees and programs before you sign.`), f.el, btn));
   }
 
   // ---- launch (empty space) or take over
@@ -99,35 +114,26 @@ export function renderCoinSection(body, S, s, ctx) {
     const preview = h("img", { class: "lp-preview", alt: "" }); preview.hidden = true;
     file.addEventListener("change", async () => { try { preview.src = await readImage(file.files[0]); preview.hidden = false; } catch (e) { say(e.message); } });
     const f = amountField(min, L.maxBuyLamports, Math.max(min, Math.min(L.maxBuyLamports, 50_000_000)));
-    const btn = h("button", { class: `btn ${coin ? "btn-ghost" : "btn-primary"}`, type: "button" }, icon("rocket"), coin ? "Take over this space" : "Launch coin on Pump.fun");
+    const btn = h("button", { class: `btn ${coin ? "btn-ghost" : "btn-primary"}`, type: "button" }, icon("rocket"), "Review Launch Cost");
     btn.onclick = () => run(btn, async () => {
       const image = await readImage(file.files[0]);
       if (name.value.trim().length < 2) throw new Error("Give your coin a name.");
       if (!/^[A-Za-z0-9]{2,10}$/.test(ticker.value.trim())) throw new Error("Ticker: 2 to 10 letters or numbers.");
       say("Uploading your coin image…");
       const prep = await api.post("/api/launchpad/launch", { stopId: s.id, name: name.value.trim(), symbol: ticker.value.trim(), description: desc.value.trim() || undefined, image, lamports: toLamports(f.input.value) });
-      const r = await signAndSubmit(S, prep, say);
+      const r = await signAndSubmit(S, prep, say, ctx);
       say(r.message); ctx.toast(r.message, "gold", { ms: 8000 });
-      if (r.next) {
-        say("One more approval: confirm the 80/20 creator fee split (80% to you, 20% to TEK CITY community rewards).");
-        const r2 = await signAndSubmit(S, r.next, say);
-        say(r2.message); ctx.toast(r2.message, "gold");
-      }
     });
     add(wrap, h("div", { class: "lp-block" },
-      h("h4", {}, coin ? `Take over from $${coin.symbol}` : "Launch your coin here"),
+      h("h4", {}, coin ? `Take over from $${coin.symbol}` : "Launch Your Coin"),
       h("p", { class: "small ink2" }, coin
         ? `Launch a new coin on this space with a first buy of at least ${sol(min)} SOL, matching $${coin.symbol}'s biggest buy-in.`
-        : "Launching is free on Pump.fun. Your first buy sets this space's take-over price. 80% of creator fees go to you, 20% to community rewards."),
+        : "Your first buy sets this space's take-over price. Your coin's creator rewards go to you."),
+      h("p", { class: "small ink2" }, "Coin launches are paid directly from your connected Solana wallet through the selected launchpad. TEK CITY does not custody or take a percentage of your launch payment. Network and launchpad fees apply as displayed before transaction approval."),
       h("div", { class: "lp-form" }, name, ticker, desc, h("label", { class: "file-l" }, icon("image"), "Coin image", file), preview, h("div", { class: "k small ink2" }, "First buy"), f.el),
       btn));
-  } else if (coin) add(wrap, h("p", { class: "small ink2" }, `Take-over needs more than the ${sol(L.maxBuyLamports)} SOL per-transaction limit. Grow $${coin.symbol} instead.`));
+  } else if (coin) add(wrap, h("p", { class: "small ink2" }, `Take-over needs more than the ${sol(L.maxBuyLamports)} SOL per-transaction limit. Buy $${coin.symbol} instead.`));
 
-  if (coin && !coin.ready && m.user.name === coin.launcher) {
-    const btn = h("button", { class: "btn btn-primary", type: "button" }, icon("check"), "Confirm 80/20 fee split");
-    btn.onclick = () => run(btn, async () => { const prep = await api.post("/api/launchpad/split", { stopId: s.id }); const r = await signAndSubmit(S, prep, say); say(r.message); });
-    add(wrap, btn);
-  }
   add(wrap, status);
 }
 
@@ -150,16 +156,21 @@ export function renderSpins(el, S, ctx) {
       const into = per - Number(sp.next || per);
       add(el, h("div", { class: "prog" }, h("div", { class: "row" }, h("span", {}, "Next spin"), h("span", {}, `${fmtN(into)} / ${fmtN(per)}`)), h("div", { class: "bar" }, h("i", { style: { width: `${Math.min(100, (into / per) * 100)}%` } }))));
     }
+  } else if (sp.holder) {
+    add(el, h("div", { class: "res" },
+      h("div", {}, h("span", { class: "k" }, "TEK CITY held"), h("div", { class: "v" }, fmtN(sp.holder.balance))),
+      h("div", {}, h("span", { class: "k" }, "Round spin"), h("div", { class: "v" }, !sp.holder.eligible ? "Locked" : m.can.move ? "Used" : "Ready"))));
+    if (!sp.holder.eligible) add(el, h("div", { class: "prog" }, h("div", { class: "row" }, h("span", {}, "Holder spin"), h("span", {}, `${fmtN(sp.holder.balance)} / ${fmtN(sp.holder.required)}`)), h("div", { class: "bar" }, h("i", { style: { width: `${Math.min(100, (sp.holder.balance / sp.holder.required) * 100)}%` } }))));
   } else {
     add(el, h("div", { class: "res" },
       h("div", {}, h("span", { class: "k" }, "Round spin"), h("div", { class: "v" }, m.can.move ? "Used" : "Ready")),
       h("div", {}, h("span", { class: "k" }, "Bonus spins"), h("div", { class: "v" }, String((sp && sp.bonus) || 0)))));
   }
   add(el,
-    h("p", {}, sp.enabled ? `1 free spin for every ${fmtN(per)} TEK CITY you buy, plus 1 every time you pass START.` : "1 free spin each 15-minute round, plus 1 every time you pass START. Once TEK CITY is live, every 500,000 you buy = 1 spin."),
+    h("p", {}, sp.enabled ? `1 free spin for every ${fmtN(per)} TEK CITY you buy, plus 1 every time you pass START.` : sp.holder ? `Wallets holding ${fmtN(per)}+ TEK CITY get 1 free spin each 15-minute round, plus 1 every time they pass START.` : "1 free spin each 15-minute round, plus 1 every time you pass START."),
     h("button", { class: "btn btn-primary spin-btn", disabled: !!m.can.move || S.busy, onclick: () => ctx.act("move") }, icon("dice-5"), "Spin"),
     m.can.move ? h("p", { class: "small" }, m.can.move) : null,
-    !m.user.wallet ? h("button", { class: "btn btn-ghost", onclick: ctx.linkWallet }, icon("wallet"), "Connect wallet") : null,
+    !m.user.wallet ? h("button", { class: "btn btn-ghost", onclick: ctx.linkWallet }, icon("wallet"), "Connect Solana Wallet") : null,
     h("div", { class: "here" }, h("span", { class: "muted" }, "Your pawn is on"), h("b", {}, spaceName(S.city, m.position)),
       h("span", { class: "muted" }, here && here.type === "station" ? "Spin to move." : coin ? "Buy in to grow it, or take the space over." : "Empty. Launch your coin here."),
       here && here.type !== "station" ? h("button", { class: "btn btn-cream btn-sm mt8", onclick: () => ctx.openDrawer(here.id) }, coin ? "Open space" : "Launch here") : null));
@@ -191,6 +202,11 @@ export async function renderPump(el, S, ctx, fresh = false) {
       h("button", { class: "btn btn-ghost btn-sm", onclick: async () => { await api.post("/api/pump/unlink", {}); S.pump = null; renderPump(el, S, ctx); } }, "Start over"), status);
     return;
   }
+  if (!P.bioLink) {
+    add(el, h("p", { class: "small mb0" }, "Use a Solana wallet you control, such as Phantom, Solflare, or Backpack. SOL and tokens are available when they are held by the wallet you connect."),
+      h("p", { class: "small mb0" }, "Bought on pump.fun with Phantom? Connect that same Phantom wallet and your pump.fun profile shows up here."));
+    return;
+  }
   const input = h("input", { class: "txt", placeholder: "pump.fun/profile/… or wallet address", autocomplete: "off" });
   add(el, h("p", { class: "small mb0" }, "Signed up on pump.fun with email or X? Paste your profile link so your TEK CITY buys count."), input,
     h("button", { class: "btn btn-ghost btn-sm", onclick: async (e) => { e.target.disabled = true; try { const r = await api.post("/api/pump/link/start", { address: input.value }); S.pump = { linked: false, pending: { address: r.address, code: r.code } }; renderPump(el, S, ctx); } catch (er) { status.textContent = er.message; e.target.disabled = false; } } }, "Link pump.fun"), status);
@@ -219,17 +235,16 @@ export function renderCoins(el, S, ctx) {
     h("span", { class: "amt" }, `${sol(c.grownLamports)} SOL`)))));
 }
 
-// Rewards panel.
+// Spins panel (was the community pool panel). Gameplay only.
 export function renderRewards(el, info) {
   clear(el);
   if (!info) { add(el, h("p", { class: "small mb0" }, "Loading…")); return; }
-  const r = info.rewards || {};
-  const mins = 59 - new Date().getMinutes();
+  const per = Number(info.tokensPerSpin || 500000).toLocaleString();
   add(el,
-    h("div", { class: "pool" }, h("span", { class: "k" }, "In the pool"), h("b", {}, `${sol(r.poolLamports || 0)} SOL`)),
     h("ul", { class: "pool-rules" },
-      h("li", {}, h("span", {}, "Land on the Vault"), h("b", {}, `${(r.jackpotBps || 0) / 100}%`)),
-      h("li", {}, h("span", {}, `Top holders, every hour · next in ${mins}m`), h("b", {}, `${(r.hourlyBps || 0) / 100}%`)),
-      h("li", {}, h("span", {}, "Source"), h("b", {}, "20% of creator fees"))),
-    (r.jackpots || []).length ? h("div", { class: "wins" }, (r.jackpots || []).slice(0, 3).map((j) => h("div", {}, `${j.display_name || "Player"} won ${sol(j.lamports)} SOL`))) : null);
+      h("li", {}, h("span", {}, "Every round"), h("b", {}, "1 free spin")),
+      h("li", {}, h("span", {}, "Pass START or land on the Vault"), h("b", {}, "+1 spin")),
+      h("li", {}, h("span", {}, "Holding needed"), h("b", {}, info.spinToken ? `${per} TEK CITY` : "None until token is live")),
+      h("li", {}, h("span", {}, "TEK CITY fee on launches"), h("b", {}, "0%"))),
+    h("p", { class: "small mb0" }, "TEK CITY tokens provide game utility only. They do not provide equity, dividends, revenue share, profit rights, ownership of Community Fund assets, or guaranteed financial returns."));
 }
