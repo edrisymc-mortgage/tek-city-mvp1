@@ -47,12 +47,12 @@ export function renderCoinSection(body, S, s, ctx) {
   const hasWallet = m.signedIn && m.user.wallet;
   const wrap = h("div", { class: "coin-sec" });
   add(body, wrap);
-  if (s.type === "station") { add(wrap, h("p", { class: "small ink2" }, "Central Station is the start. Spin to land on a space, then launch or grow a coin there.")); return; }
-  if (s.type === "vault") add(wrap, h("div", { class: "jackpot-note" }, icon("vault"), h("span", {}, h("b", {}, "Jackpot space. "), "Land here on a spin to win the biggest share of the community rewards pool.")));
+  if (s.type === "station") { add(wrap, h("p", { class: "small ink2" }, "START. Every time you pass or land here you get a free spin.")); return; }
+  if (s.type === "vault") add(wrap, h("div", { class: "jackpot-note" }, icon("vault"), h("span", {}, h("b", {}, "Jackpot space. "), "Land here on a spin to win 60% of the community pool.")));
 
   if (coin) {
     add(wrap, h("div", { class: "coin-card" },
-      coin.image ? h("img", { src: coin.image, alt: "", class: "coin-img" }) : h("span", { class: "coin-img ph" }, coin.symbol.slice(0, 2)),
+      coin.image ? h("img", { src: coin.image, alt: "", class: "coin-img" }) : h("span", { class: "coin-img ph" }, coin.symbol.slice(0, 3)),
       h("div", {}, h("b", {}, coin.name), h("span", { class: "tick" }, `$${coin.symbol}`),
         h("small", {}, `Launched by ${coin.launcher || coin.launcherWallet}`)),
       h("a", { class: "btn btn-ghost btn-sm", href: coin.pumpUrl, target: "_blank", rel: "noopener" }, icon("external-link"), "Pump.fun")),
@@ -86,7 +86,7 @@ export function renderCoinSection(body, S, s, ctx) {
       const r = await signAndSubmit(S, prep, say);
       say(r.message); ctx.toast(r.message, "gold");
     });
-    add(wrap, h("div", { class: "lp-block" }, h("h4", {}, `Grow $${coin.symbol}`), h("p", { class: "small ink2" }, "Buy into this coin on Pump.fun. Your buy grows the space and its buildings."), f.el, btn));
+    add(wrap, h("div", { class: "lp-block" }, h("h4", {}, `Grow $${coin.symbol}`), h("p", { class: "small ink2" }, "Buy into this coin on Pump.fun. Your buy is added to this space's total."), f.el, btn));
   }
 
   // ---- launch (empty space) or take over
@@ -99,7 +99,7 @@ export function renderCoinSection(body, S, s, ctx) {
     const preview = h("img", { class: "lp-preview", alt: "" }); preview.hidden = true;
     file.addEventListener("change", async () => { try { preview.src = await readImage(file.files[0]); preview.hidden = false; } catch (e) { say(e.message); } });
     const f = amountField(min, L.maxBuyLamports, Math.max(min, Math.min(L.maxBuyLamports, 50_000_000)));
-    const btn = h("button", { class: `btn ${coin ? "btn-red" : "btn-primary"}`, type: "button" }, icon("rocket"), coin ? "Take over this space" : "Launch coin on Pump.fun");
+    const btn = h("button", { class: `btn ${coin ? "btn-ghost" : "btn-primary"}`, type: "button" }, icon("rocket"), coin ? "Take over this space" : "Launch coin on Pump.fun");
     btn.onclick = () => run(btn, async () => {
       const image = await readImage(file.files[0]);
       if (name.value.trim().length < 2) throw new Error("Give your coin a name.");
@@ -131,36 +131,105 @@ export function renderCoinSection(body, S, s, ctx) {
   add(wrap, status);
 }
 
-// Left panel in spin mode.
+const fmtN = (n) => Math.floor(Number(n || 0)).toLocaleString();
+const usd = (n) => n >= 1e6 ? `$${+(n / 1e6).toFixed(n % 1e6 ? 1 : 0)}M` : n >= 1e3 ? `$${Math.round(n / 1e3)}K` : `$${Math.round(n)}`;
+const spaceName = (city, id) => { const st = city.stops[id]; if (!st) return "--"; if (st.type === "station") return "START"; if (st.type === "vault") return "Vault"; const c = coinAt(city, id); return c ? `$${c.symbol}` : `Space ${String(id).padStart(2, "0")}`; };
+export { spaceName };
+
+// Player panel.
 export function renderSpins(el, S, ctx) {
   const m = S.me, sp = m.spins || {}, here = S.city.stops[m.position];
   const coin = here ? coinAt(S.city, here.id) : null;
+  const per = Number(sp.tokensPerSpin || S.city.launchpad.tokensPerSpin || 500000);
+  if (sp.enabled) {
+    add(el, h("div", { class: "res res3" },
+      h("div", {}, h("span", { class: "k" }, "Bought"), h("div", { class: "v" }, sp.wallet ? fmtN(sp.bought) : "--")),
+      h("div", {}, h("span", { class: "k" }, "Bonus"), h("div", { class: "v" }, String(sp.bonus || 0))),
+      h("div", {}, h("span", { class: "k" }, "Spins"), h("div", { class: "v" }, String(sp.left ?? 0)))));
+    if (sp.wallet) {
+      const into = per - Number(sp.next || per);
+      add(el, h("div", { class: "prog" }, h("div", { class: "row" }, h("span", {}, "Next spin"), h("span", {}, `${fmtN(into)} / ${fmtN(per)}`)), h("div", { class: "bar" }, h("i", { style: { width: `${Math.min(100, (into / per) * 100)}%` } }))));
+    }
+  } else {
+    add(el, h("div", { class: "res" },
+      h("div", {}, h("span", { class: "k" }, "Round spin"), h("div", { class: "v" }, m.can.move ? "Used" : "Ready")),
+      h("div", {}, h("span", { class: "k" }, "Bonus spins"), h("div", { class: "v" }, String((sp && sp.bonus) || 0)))));
+  }
   add(el,
-    h("div", { class: "res res2" },
-      h("div", {}, h("span", { class: "k" }, icon("coins"), "TEK CITY"), h("div", { class: "v" }, sp.wallet ? Math.floor(sp.balance || 0).toLocaleString() : "--")),
-      h("div", {}, h("span", { class: "k" }, icon("dice-5"), "Spins"), h("div", { class: "v" }, sp.enabled ? String(sp.left ?? 0) : m.can.move ? "0" : "1"))),
-    !sp.enabled ? h("p", { class: "small muted" }, "1 free spin per round for now. Once TEK CITY launches, every 500,000 TEK CITY you hold = 1 free spin.") :
-    h("p", { class: "small muted" }, sp.wallet ? `1 free spin per ${Number(sp.tokensPerSpin).toLocaleString()} TEK CITY held. ${sp.next ? `${Math.ceil(sp.next).toLocaleString()} more for your next spin.` : ""}` : "Link Phantom. Every 500,000 TEK CITY you hold = 1 free spin."),
-    !m.user.wallet ? h("button", { class: "btn btn-primary", onclick: ctx.linkWallet }, icon("wallet"), "Link Phantom") : null,
+    h("p", {}, sp.enabled ? `1 free spin for every ${fmtN(per)} TEK CITY you buy, plus 1 every time you pass START.` : "1 free spin each 15-minute round, plus 1 every time you pass START. Once TEK CITY is live, every 500,000 you buy = 1 spin."),
     h("button", { class: "btn btn-primary spin-btn", disabled: !!m.can.move || S.busy, onclick: () => ctx.act("move") }, icon("dice-5"), "Spin"),
-    m.can.move ? h("p", { class: "small ink2" }, m.can.move) : null,
-    h("div", { class: "here" }, h("span", { class: "muted" }, "You're on"), h("b", {}, coin ? `$${coin.symbol}` : here ? here.name : "--"),
-      h("span", { class: "muted" }, here && here.type === "station" ? "Spin to land on a space." : coin ? "Grow this coin or take the space over." : "Empty space. Launch your coin here."),
-      here && here.type !== "station" ? h("button", { class: "btn btn-cream btn-sm mt8", onclick: () => ctx.openDrawer(here.id) }, icon("rocket"), coin ? "Open coin" : "Launch here") : null));
+    m.can.move ? h("p", { class: "small" }, m.can.move) : null,
+    !m.user.wallet ? h("button", { class: "btn btn-ghost", onclick: ctx.linkWallet }, icon("wallet"), "Connect wallet") : null,
+    h("div", { class: "here" }, h("span", { class: "muted" }, "Your pawn is on"), h("b", {}, spaceName(S.city, m.position)),
+      h("span", { class: "muted" }, here && here.type === "station" ? "Spin to move." : coin ? "Buy in to grow it, or take the space over." : "Empty. Launch your coin here."),
+      here && here.type !== "station" ? h("button", { class: "btn btn-cream btn-sm mt8", onclick: () => ctx.openDrawer(here.id) }, coin ? "Open space" : "Launch here") : null));
+  const pc = h("div", { class: "pumpcard" }); add(el, pc);
+  renderPump(pc, S, ctx);
+}
+
+// pump.fun profile: auto-detected from the linked wallet, or verified with a bio code.
+export async function renderPump(el, S, ctx, fresh = false) {
+  clear(el);
+  if (!S.pump || fresh) { add(el, h("span", { class: "lbl" }, "pump.fun"), h("p", { class: "small mb0" }, "Checking…")); try { S.pump = await api.get("/api/pump/me"); } catch { S.pump = { linked: false }; } clear(el); }
+  const P = S.pump;
+  add(el, h("span", { class: "lbl" }, "pump.fun profile"));
+  if (P.linked) {
+    const pr = P.profile;
+    add(el, h("div", { class: "who" }, pr.avatar ? h("img", { src: pr.avatar, alt: "" }) : h("span", { class: "ph" }),
+      h("div", {}, h("b", {}, pr.username || `${pr.address.slice(0, 4)}…${pr.address.slice(-4)}`), h("small", {}, pr.via === "wallet" ? "Linked through your wallet" : "Verified by bio code"))));
+    if ((P.coins || []).length) add(el, h("div", { class: "pcoins" }, P.coins.slice(0, 6).map((c) => h("a", { href: c.url, target: "_blank", rel: "noopener" }, c.image ? h("img", { src: c.image, alt: "" }) : null, `$${c.symbol}`))));
+    add(el, h("a", { class: "btn btn-ghost btn-sm", href: pr.url, target: "_blank", rel: "noopener" }, icon("external-link"), "View on pump.fun"));
+    if (pr.via === "bio") add(el, h("button", { class: "btn btn-ghost btn-sm", onclick: async () => { await api.post("/api/pump/unlink", {}); S.pump = null; renderPump(el, S, ctx); } }, "Unlink"));
+    return;
+  }
+  const status = h("p", { class: "small mb0", role: "status" });
+  if (P.pending) {
+    add(el, h("p", { class: "small mb0" }, "Add this code anywhere in your pump.fun bio, save, then verify. You can remove it afterwards."),
+      h("div", { class: "code" }, P.pending.code),
+      h("a", { class: "btn btn-ghost btn-sm", href: "https://pump.fun/profile/edit", target: "_blank", rel: "noopener" }, icon("external-link"), "Edit pump.fun profile"),
+      h("button", { class: "btn btn-primary btn-sm", onclick: async (e) => { e.target.disabled = true; try { const r = await api.post("/api/pump/link/verify", {}); S.pump = { linked: true, profile: r.profile, coins: r.coins }; ctx.toast("pump.fun profile linked.", "ok"); renderPump(el, S, ctx); ctx.refresh(); } catch (er) { status.textContent = er.message; e.target.disabled = false; } } }, "Verify"),
+      h("button", { class: "btn btn-ghost btn-sm", onclick: async () => { await api.post("/api/pump/unlink", {}); S.pump = null; renderPump(el, S, ctx); } }, "Start over"), status);
+    return;
+  }
+  const input = h("input", { class: "txt", placeholder: "pump.fun/profile/… or wallet address", autocomplete: "off" });
+  add(el, h("p", { class: "small mb0" }, "Signed up on pump.fun with email or X? Paste your profile link so your TEK CITY buys count."), input,
+    h("button", { class: "btn btn-ghost btn-sm", onclick: async (e) => { e.target.disabled = true; try { const r = await api.post("/api/pump/link/start", { address: input.value }); S.pump = { linked: false, pending: { address: r.address, code: r.code } }; renderPump(el, S, ctx); } catch (er) { status.textContent = er.message; e.target.disabled = false; } } }, "Link pump.fun"), status);
+}
+
+// Milestones panel.
+export function renderMilestones(el, info) {
+  clear(el);
+  const ms = info && info.milestones;
+  if (!ms) { add(el, h("p", { class: "small mb0" }, "Loading…")); return; }
+  add(el, h("div", { class: "ms-cap" }, h("span", {}, "TEK CITY mcap"), h("span", {}, ms.mcapUsd ? usd(ms.mcapUsd) : "Not live yet")));
+  const firstOpen = ms.ladder.findIndex((m) => m.status !== "done");
+  add(el, h("ul", { class: "ms" }, ms.ladder.slice(Math.max(0, firstOpen - 1), Math.max(0, firstOpen - 1) + 5).map((m) =>
+    h("li", { class: m.status }, h("span", { class: "c" }, usd(m.mcap)), h("span", { class: "t" }, m.title), h("span", { class: "s" }, m.status === "done" ? "Done" : m.status === "funding" ? "Paying" : "")))));
+}
+
+// Coins list.
+export function renderCoins(el, S, ctx) {
+  clear(el);
+  const coins = [...(S.city.coins || [])].sort((a, b) => Number(b.grownLamports) - Number(a.grownLamports));
+  const n = document.getElementById("coins-n"); if (n) n.textContent = `${coins.length} / ${S.city.stops.length - 1}`;
+  if (!coins.length) { add(el, h("p", { class: "empty-note mb0" }, "No coins yet. Every space is open. Spin and launch the first one.")); return; }
+  add(el, h("div", { class: "coins" }, coins.slice(0, 12).map((c) => h("button", { class: "coin-row", onclick: () => ctx.openDrawer(c.stop) },
+    c.image ? h("img", { src: c.image, alt: "" }) : h("span", { class: "ph" }, c.symbol.slice(0, 3)),
+    h("span", {}, h("b", {}, c.name), h("small", {}, `$${c.symbol} · space ${String(c.stop).padStart(2, "0")}`)),
+    h("span", { class: "amt" }, `${sol(c.grownLamports)} SOL`)))));
 }
 
 // Rewards panel.
 export function renderRewards(el, info) {
   clear(el);
-  if (!info) { add(el, h("p", { class: "small muted" }, "Loading…")); return; }
+  if (!info) { add(el, h("p", { class: "small mb0" }, "Loading…")); return; }
   const r = info.rewards || {};
-  const now = new Date(); const mins = 59 - now.getUTCMinutes();
+  const mins = 59 - new Date().getMinutes();
   add(el,
-    h("div", { class: "pool" }, h("span", { class: "k" }, "Community pool"), h("b", {}, `${sol(r.poolLamports || 0)} SOL`)),
+    h("div", { class: "pool" }, h("span", { class: "k" }, "In the pool"), h("b", {}, `${sol(r.poolLamports || 0)} SOL`)),
     h("ul", { class: "pool-rules" },
-      h("li", {}, h("b", {}, `${(r.jackpotBps || 0) / 100}%`), " to whoever lands on the Community Vault"),
-      h("li", {}, h("b", {}, `${(r.hourlyBps || 0) / 100}%`), ` split across top TEK CITY holders every hour · next in ${mins}m`),
-      h("li", {}, "Grows with 20% of creator fees from every coin launched on the board")),
-    (r.jackpots || []).length ? h("div", { class: "small" }, h("div", { class: "k" }, "Recent jackpots"), (r.jackpots || []).slice(0, 3).map((j) => h("div", {}, `${j.display_name || "Player"} · ${sol(j.lamports)} SOL`))) : null,
-    !r.pool ? h("p", { class: "small muted" }, "Rewards wallet not configured yet.") : null);
+      h("li", {}, h("span", {}, "Land on the Vault"), h("b", {}, `${(r.jackpotBps || 0) / 100}%`)),
+      h("li", {}, h("span", {}, `Top holders, every hour · next in ${mins}m`), h("b", {}, `${(r.hourlyBps || 0) / 100}%`)),
+      h("li", {}, h("span", {}, "Source"), h("b", {}, "20% of creator fees"))),
+    (r.jackpots || []).length ? h("div", { class: "wins" }, (r.jackpots || []).slice(0, 3).map((j) => h("div", {}, `${j.display_name || "Player"} won ${sol(j.lamports)} SOL`))) : null);
 }

@@ -22,6 +22,8 @@ async function createApp(config, opts = {}) {
   require("./chain/pump").configure(config);
   require("./chain/rewards").configure(config);
   require("./game/spins").configure(config);
+  require("./game/milestones").configure(config);
+  require("./chain/rewards").setBoostSource(() => require("./game/milestones").boosts());
   const { mode } = await db.init(config, opts.db || {});
   await migrate(config);
   await engine.ensureOpenRound();
@@ -85,6 +87,7 @@ async function createApp(config, opts = {}) {
   });
 
   app.use("/api/admin", require("./routes/admin").build(config, { notify }));
+  app.use("/api", require("./routes/pump").build(config));
   app.use("/api", require("./routes/launchpad").build(config, { notify }));
   app.use("/api", require("./routes/api").build(config, { notify }));
   app.use("/api", (_req, res) => res.status(404).json({ error: { code: "not_found", message: "Not found." } }));
@@ -120,6 +123,7 @@ async function createApp(config, opts = {}) {
   // Hourly community rewards (idempotent per UTC hour).
   const rewardsTimer = opts.noScheduler || !config.launchpad.enabled ? null : setInterval(() => {
     require("./chain/rewards").hourly(new Date()).then((id) => { if (id) notify(); }).catch((e) => console.error("[rewards]", String(e.message).slice(0, 160)));
+    require("./game/milestones").tick().then(() => notify()).catch((e) => console.error("[milestones]", String(e.message).slice(0, 160)));
   }, 60e3);
   if (rewardsTimer) rewardsTimer.unref();
 

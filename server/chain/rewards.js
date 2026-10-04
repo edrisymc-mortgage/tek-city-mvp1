@@ -67,14 +67,25 @@ async function crankFees() {
   return n;
 }
 
-async function holders() {
+let boostSource = async () => ({});
+function setBoostSource(fn) { boostSource = fn; }
+const keypair = () => KP;
+async function bps() { const b = await boostSource().catch(() => ({})); return { jackpot: b.jackpotBps || CFG.rewards.jackpotBps, hourly: b.hourlyBps || CFG.rewards.hourlyBps, until: b.until || null }; }
+
+// Linked player wallets (Phantom sign-in or verified pump.fun profile) holding at least one spin's worth of TEK CITY.
+async function holders(max = CFG.rewards.topHolders) {
   const mint = CFG.spins.mint; if (!mint) return [];
-  const rows = (await db.query(`SELECT wa.address, wa.user_id, u.display_name FROM wallet_accounts wa JOIN users u ON u.id = wa.user_id WHERE wa.unlinked_at IS NULL ORDER BY wa.last_login_at DESC NULLS LAST LIMIT 500`)).rows;
+  const rows = (await db.query(
+    `SELECT DISTINCT ON (address) address, user_id, display_name FROM (
+       SELECT wa.address, wa.user_id, u.display_name, wa.last_login_at AS t FROM wallet_accounts wa JOIN users u ON u.id = wa.user_id WHERE wa.unlinked_at IS NULL
+       UNION ALL
+       SELECT pl.address, pl.user_id, u.display_name, pl.verified_at AS t FROM pump_links pl JOIN users u ON u.id = pl.user_id WHERE pl.verified_at IS NOT NULL
+     ) x ORDER BY address, t DESC NULLS LAST LIMIT 1000`)).rows;
   const out = [];
   for (const r of rows) {
     try { const b = await sol.tokenBalance(r.address, mint); if (b >= CFG.spins.tokensPerSpin) out.push({ ...r, balance: b }); } catch { /* skip */ }
   }
-  return out.sort((a, b) => b.balance - a.balance).slice(0, CFG.rewards.topHolders);
+  return out.sort((a, b) => b.balance - a.balance).slice(0, max);
 }
 
 async function hourly(now = new Date()) {
@@ -85,7 +96,8 @@ async function hourly(now = new Date()) {
   try {
     await crankFees();
     const pool = await poolLamports();
-    const budget = Math.min(Math.floor((pool * CFG.rewards.hourlyBps) / 10000), CFG.rewards.maxPerHourLamports);
+    const B = await bps();
+    const budget = Math.min(Math.floor((pool * B.hourly) / 10000), CFG.rewards.maxPerHourLamports * (B.hourly > CFG.rewards.hourlyBps ? 2 : 1));
     const hs = await holders();
     const total = hs.reduce((a, h) => a + h.balance, 0);
     const pays = hs.map((h) => ({ ...h, bps: total ? Math.floor((h.balance / total) * 10000) : 0, lamports: total ? Math.floor((budget * h.balance) / total) : 0 }))
@@ -108,7 +120,7 @@ async function hourly(now = new Date()) {
 // Landing on the Community Vault wins the jackpot share of the pool.
 async function jackpot({ userId, wallet, name, roundId }) {
   const pool = await poolLamports();
-  const lamports = Math.floor((pool * CFG.rewards.jackpotBps) / 10000);
+  const lamports = Math.floor((pool * (await bps()).jackpot) / 10000);
   if (lamports < CFG.rewards.minPayoutLamports) return { lamports: 0 };
   const id = (await db.query(`INSERT INTO jackpots (user_id, wallet, lamports, round_id) VALUES ($1,$2,$3,$4) RETURNING id`, [userId, wallet, lamports, roundId])).rows[0].id;
   if (auto()) {
@@ -128,9 +140,9 @@ async function summary() {
   ]);
   return {
     pool: poolAddress(), poolLamports: await poolLamports(), auto: auto(),
-    jackpotBps: CFG.rewards.jackpotBps, hourlyBps: CFG.rewards.hourlyBps,
+    ...(await bps().then((b) => ({ jackpotBps: b.jackpot, hourlyBps: b.hourly, boostUntil: b.until }))),
     runs: runs.rows, jackpots: jp.rows,
   };
 }
 
-module.exports = { configure, hourly, jackpot, summary, poolAddress, holders, auto };
+module.exports = { configure, hourly, jackpot, summary, poolAddress, holders, auto, transfer, keypair, setBoostSource };

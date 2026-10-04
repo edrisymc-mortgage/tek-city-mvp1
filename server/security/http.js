@@ -13,7 +13,7 @@ function securityHeaders(config) {
         "script-src": ["'self'"],
         "style-src": ["'self'"],
         "font-src": ["'self'"],
-        "img-src": ["'self'", "data:"],
+        "img-src": ["'self'", "data:", "https:"],
         "connect-src": ["'self'", ...wsOrigins],
         "frame-ancestors": ["'none'"],
         "form-action": ["'self'"],

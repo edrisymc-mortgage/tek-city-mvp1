@@ -18,6 +18,7 @@ const pump = require("../chain/pump");
 const sol = require("../chain/solana");
 const rewards = require("../chain/rewards");
 const spins = require("../game/spins");
+const milestones = require("../game/milestones");
 
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 const userKey = (req) => `u:${req.session.user_id}`;
@@ -59,6 +60,9 @@ function build(config, { notify }) {
       enabled: L.enabled, minBuyLamports: L.minBuyLamports, maxBuyLamports: L.maxBuyLamports, launcherBps: L.launcherBps,
       split: !!rewards.poolAddress(), spinToken: config.spins.mint || null, tokensPerSpin: config.spins.tokensPerSpin,
       rewards: await rewards.summary(),
+      milestones: await milestones.summary(),
+      coins: (await db.query(`SELECT COUNT(*)::int AS n, COALESCE(SUM(grown_lamports),0)::bigint AS l FROM space_coins`)).rows[0],
+      spaces: COIN_STOPS.size,
     });
   }));
 

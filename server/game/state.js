@@ -124,8 +124,8 @@ async function me(session) {
   const can = {
     checkin: general || why(String(p.last_checkin_round) !== rid, "Already checked in this round."),
     move: sp.enabled
-      ? general || why(!!sp.wallet, "Link a wallet holding TEK CITY to spin.") || why(sp.left > 0, `No spins left. Every ${sp.tokensPerSpin.toLocaleString()} TEK CITY = 1 spin.`)
-      : CFG.launchpad.enabled ? general || why(String(p.last_move_round) !== rid, "Free spin used. Next one at the tick.")
+      ? general || why(!!sp.wallet, "Link your wallet to spin.") || why(sp.left > 0, `No spins left. Buy ${sp.tokensPerSpin.toLocaleString()} TEK CITY or pass START for another.`)
+      : CFG.launchpad.enabled ? general || why(String(p.last_move_round) !== rid || (p.bonus_left || 0) > 0, "Free spin used. Next one at the tick.")
       : general || why(String(p.last_move_round) !== rid, "Already moved this round.") || why(p.energy >= RULES.moveCost, `Needs ${RULES.moveCost} Energy.`),
     contribute: general || why(contribCount < RULES.contributionsPerRound, `All ${RULES.contributionsPerRound} contributions used this round.`) || why(p.energy >= RULES.contributeCost, "Needs 1 Energy.") || why(p.build_credits >= RULES.minContribution, `Needs at least ${RULES.minContribution} Build Credits.`),
     vote: general || why(ev && ev.kind === "brief", "No City Brief this round (crisis in progress).") || why(String(p.last_vote_round) !== rid, "Already voted this round."),
@@ -142,7 +142,7 @@ async function me(session) {
     onSite: String(p.visited_round) === rid ? p.position : null,
     contributionsLeft: RULES.contributionsPerRound - contribCount,
     tutorialDone: p.tutorial_done,
-    spins: sp,
+    spins: sp.enabled ? sp : { ...sp, perRound: true, left: (String(p.last_move_round) !== rid ? 1 : 0) + (p.bonus_left || 0), bonus: p.bonus_total || 0 },
     badges: bR.rows,
     can,
     csrf: session.csrf_token,

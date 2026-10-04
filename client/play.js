@@ -5,7 +5,7 @@ import { api, ApiError } from "./lib/api.js";
 import { h, icon, $, $$, clear, avatar, fmtTime } from "./lib/dom.js";
 const add = (el, ...nodes) => el.append(...nodes.flat().filter((n) => n !== null && n !== undefined && n !== false));
 import { Board3D, webglAvailable, loadFonts } from "./board3d.js";
-import { renderCoinSection, renderSpins, renderRewards } from "./launchpad.js";
+import { renderPump, renderCoinSection, renderSpins, renderRewards, renderMilestones, renderCoins, spaceName, coinAt, sol } from "./launchpad.js";
 import { listWallets, onWalletsChanged, signInWith, disconnect, isMobile, phantomBrowseLink } from "./lib/wallet.js";
 
 const S = { city: null, me: { signedIn: false }, config: null, lb: "today", drawer: null, busy: false, wallet: null, lastRound: null };
@@ -40,36 +40,41 @@ function scheduleRefresh(delay = 250) { clearTimeout(pending); pending = setTime
 // ------------------------------------------------------------------ render
 function render() {
   if (!S.city) return;
-  if (LP() && LP().enabled) {
-    for (const id of ["#goal-mini", "#moods", "#lb", "#goal"]) { const e = $(id); const pnl = e && (e.closest(".panel") || e); if (pnl) pnl.classList.add("lp-hide"); }
-    const ph = $("#player-panel h3"); if (ph) ph.textContent = "Your player";
-  }
-  renderTop(); renderAccount(); renderPlayer(); renderBoard(); renderEvent(); renderGoal(); renderVault(); renderLB(); renderMoods(); renderFeed(); renderMobile();
+  renderTop(); renderAccount(); renderPlayer(); renderBoard(); renderSide(); renderFeed(); renderMobile();
   if (S.drawer !== null) renderDrawer();
   renderIcons();
+}
+function renderSide() {
+  renderRewards($("#vault"), S.lpInfo);
+  renderMilestones($("#milestones"), S.lpInfo);
+  renderCoins($("#coins"), S, LPCTX);
 }
 
 function renderTop() {
   const c = S.city;
-  $("#round-no").textContent = c.round ? `${c.round.number} / 96` : "--";
-  $("#day-label").textContent = c.day;
   const p = $("#paused");
   p.classList.toggle("show", !!c.paused);
-  p.textContent = c.paused ? `City paused: ${c.pausedReason}. Your progress is safe.` : "";
-  if (S.lastRound && c.round && S.lastRound !== c.round.key) toast(`Round ${c.round.number} is open. Energy refilled.`, "info");
-  S.lastRound = c.round && c.round.key;
+  p.textContent = c.paused ? `Board paused: ${c.pausedReason}.` : "";
+  const i = S.lpInfo;
+  if (i) {
+    const m = i.milestones && i.milestones.mcapUsd;
+    $("#c-mcap").textContent = m ? `$${Math.round(m).toLocaleString()}` : "Not live";
+    $("#c-pool").textContent = `${sol((i.rewards && i.rewards.poolLamports) || 0)} SOL`;
+  }
+  $("#countdown-box").classList.toggle("lp-hide", !!(c.launchpad && c.launchpad.spins));
 }
 
 function renderAccount() {
   const slot = clear($("#account-slot"));
   if (S.me.signedIn) {
     const u = S.me.user;
+    const pf = S.pump && S.pump.linked && S.pump.profile;
     add(slot, h("button", { class: "profile-chip", onclick: openProfile, "aria-label": "Your profile" },
-      avatar(u.name, u.seed), h("span", {}, u.name), u.wallet ? h("span", { class: "verified", title: `Verified wallet ${u.wallet.short}` }, icon("badge-check")) : null));
+      pf && pf.avatar ? h("img", { class: "pf", src: pf.avatar, alt: "" }) : avatar(u.name, u.seed), h("span", {}, (pf && pf.username) || u.name), u.wallet ? h("span", { class: "mono muted small" }, u.wallet.short) : null));
   } else {
     add(slot, 
-      h("button", { class: "btn btn-cream btn-sm", onclick: () => openSignIn() }, icon("play"), "Play as guest"),
-      walletEnabled() ? h("button", { class: "btn btn-ghost btn-sm", onclick: () => openSignIn(true) }, icon("wallet"), "Connect wallet") : null,
+      walletEnabled() ? h("button", { class: "btn btn-primary btn-sm", onclick: () => openSignIn(true) }, "Connect wallet") : null,
+      h("button", { class: "btn btn-ghost btn-sm", onclick: () => openSignIn() }, "Guest"),
     );
   }
 }
@@ -87,28 +92,14 @@ function renderPlayer() {
   const el = clear($("#player"));
   if (!S.me.signedIn) {
     add(el, h("div", { class: "signin" },
-      h("p", {}, "Join the city to check in, ride the Transit Line, and build districts with everyone else."),
-      h("button", { class: "btn btn-primary", onclick: () => openSignIn() }, icon("play"), "Play as guest"),
-      walletEnabled() ? h("button", { class: "btn btn-ghost", onclick: () => openSignIn(true) }, icon("wallet"), "Sign in with wallet") : null,
-      h("p", { class: "muted" }, "Wallets are optional and only used for identity. TEK CITY never asks for your seed phrase or private key.")));
+      h("p", {}, "Connect a Solana wallet to spin, launch coins and collect rewards. Use the same wallet you use on pump.fun and your profile links automatically."),
+      walletEnabled() ? h("button", { class: "btn btn-primary", onclick: () => openSignIn(true) }, icon("wallet"), "Connect wallet") : null,
+      h("button", { class: "btn btn-ghost", onclick: () => openSignIn() }, "Look around as a guest"),
+      h("p", { class: "small" }, "Connecting signs a message only. It is not a transaction and costs nothing.")));
     return;
   }
-  if (LP() && LP().enabled) { renderSpins(el, S, LPCTX); return; }
-  const m = S.me, r = m.resources, here = stop(m.position);
-  add(el, 
-    h("div", { class: "res" },
-      h("div", { class: "energy" }, h("span", { class: "k" }, icon("zap"), "Energy"), h("div", { class: "v" }, `${r.energy}`, h("small", { class: "muted" }, `/${r.maxEnergy}`))),
-      h("div", { class: "credits" }, h("span", { class: "k" }, icon("coins"), "Credits"), h("div", { class: "v" }, fmt(r.build_credits))),
-      h("div", { class: "influence" }, h("span", { class: "k" }, icon("star"), "Influence"), h("div", { class: "v" }, fmt(r.influence_today)))),
-    h("div", { class: "energy-bar" }, bar(pct(r.energy, r.maxEnergy))),
-    h("div", { class: "actions" },
-      actionButton({ id: "checkin", ic: "circle-check", title: "Check in", sub: "Collect Build Credits, +1 Energy, +1 Influence", reason: m.can.checkin, onclick: () => act("checkin"), primary: !m.can.checkin }),
-      actionButton({ id: "move", ic: "train-front", title: "Ride the Transit Line", sub: "Server rolls 1 to 6. Land on a district to build on site.", cost: "2 ⚡", reason: m.can.move, onclick: () => act("move") }),
-      actionButton({ id: "contribute", ic: "hammer", title: "Contribute", sub: `${m.contributionsLeft} of ${S.city.rules.contributionsPerRound} left this round. Tap a district.`, cost: "1 ⚡", reason: m.can.contribute, onclick: () => openDrawer(here && here.type === "district" ? here.id : firstOpenDistrict()) })),
-    h("div", { class: "here" }, h("span", { class: "muted" }, "You're at"), h("b", {}, here ? here.name : "--"),
-      m.onSite !== null ? h("span", {}, "On site: contributions here earn 1.5x District XP this round.") : h("span", { class: "muted" }, here && here.text ? here.text : "Ride the line to reach a district.")),
-    m.badges.length ? h("div", { class: "badges" }, m.badges.map((b) => h("span", { title: b.description }, b.name))) : null,
-    h("div", { class: "mt12" }, h("button", { class: "btn btn-ghost btn-sm", onclick: () => openTutorial(0) }, icon("circle-help"), "How to play")));
+  renderSpins(el, S, LPCTX);
+  add(el, h("button", { class: "btn btn-ghost btn-sm mt12", onclick: () => openTutorial(0) }, icon("circle-help"), "How it works"));
 }
 
 const LP = () => S.city && S.city.launchpad;
@@ -120,42 +111,13 @@ const LPCTX = {
   act: (t, b) => act(t, b),
   openDrawer: (id) => openDrawer(id),
 };
-async function refreshLaunchpad() { try { S.lpInfo = await api.get("/api/launchpad/info"); if (S.city) renderVault(); } catch { /* ignore */ } }
+async function refreshLaunchpad() {
+  try { S.lpInfo = await api.get("/api/launchpad/info"); if (S.b3 && S.b3.setPool) S.b3.setPool(Number(S.lpInfo.rewards && S.lpInfo.rewards.poolLamports) || 0); if (S.city) { renderTop(); renderSide(); renderIcons(); } } catch { /* ignore */ }
+}
 setInterval(refreshLaunchpad, 60e3);
-
-function firstOpenDistrict() { const d = S.city.districts.find((x) => x.next); return d ? d.id : 1; }
 
 const MOBILE = window.matchMedia("(max-width: 900px)");
 MOBILE.addEventListener("change", () => render());
-function renderEvent() {
-  const other = MOBILE.matches || S.b3 ? $("#event") : $("#event-m");
-  if (other) clear(other);
-  const el = clear(MOBILE.matches || S.b3 ? $("#event-m") : $("#event"));
-  const e = S.city.event;
-  if (!e || (LP() && LP().enabled)) return;
-  if (e.kind === "crisis") {
-    const d = district(e.target);
-    add(el, h("div", { class: "event crisis" },
-      h("div", { class: "eic" }, icon("siren")),
-      h("div", {},
-        h("span", { class: "tag" }, `City crisis · Severity ${e.severity}`),
-        h("h2", {}, e.title.split(" ·")[0]),
-        h("p", {}, e.body),
-        h("div", { class: "crisis-meter" }, bar(pct(e.progress, e.requirement)), h("span", { class: "mono" }, `${fmt(e.progress)} / ${fmt(e.requirement)} District XP at ${d ? d.name : "?"}`)),
-        h("div", { class: "mt12" }, h("button", { class: "btn btn-red btn-sm", onclick: () => openDrawer(e.target), disabled: !S.me.signedIn }, icon("hammer"), `Help ${d ? d.name : ""}`)))));
-    return;
-  }
-  const reason = S.me.signedIn ? S.me.can.vote : "Join the city to vote.";
-  const total = (e.tally || []).reduce((a, b) => a + b, 0);
-  add(el, h("div", { class: "event" },
-    h("div", { class: "eic" }, icon("gavel")),
-    h("div", {},
-      h("span", { class: "tag" }, "City Brief · decided at the tick"),
-      h("h2", {}, e.title), h("p", {}, e.body),
-      h("div", { class: "options" }, e.options.map((o, i) => h("button", { class: "opt", disabled: !!reason || S.busy, onclick: () => act("vote", { option: i }), title: reason || "" },
-        h("b", {}, o.label), h("small", {}, o.hint || ""), h("span", { class: "votes" }, `${e.tally ? e.tally[i] : 0} vote${e.tally && e.tally[i] === 1 ? "" : "s"}${total ? ` · ${Math.round(((e.tally[i] || 0) / total) * 100)}%` : ""}`)))),
-      reason && S.me.signedIn ? h("p", { class: "mt12 small" }, reason) : null)));
-}
 
 // 7x7 loop board: 24 spaces around the edge, city center in the middle.
 // Stop 0 (Central Station) is the bottom-right corner; play runs clockwise: bottom row right->left, up the left side, across the top, down the right side.
@@ -179,53 +141,24 @@ function renderBoard3D() {
   }
   S.b3.update(c, S.me);
   const hud = clear($("#hud3d"));
+  const sp = S.me.spins || {};
   add(hud,
-    h("button", { class: "btn btn-primary roll", id: "roll-btn", disabled: !S.me.signedIn || !!S.me.can.move || S.busy, onclick: () => act("move") }, icon("dice-5"), LP() && LP().enabled ? "Spin" : "Roll"),
-    h("small", { class: "roll-why" }, !S.me.signedIn ? "Connect Phantom to play" : S.me.can.move || (LP() && LP().spins ? `${(S.me.spins && S.me.spins.left) || 0} free spins left` : "Costs 2 Energy · once per round")));
-  const legend = clear($("#legend"));
-  for (const n of Object.values(c.neighborhoods)) add(legend, h("span", { style: { "--hc": n.color } }, h("i"), `${n.name} · ${n.levels} lv`));
+    h("button", { class: "btn btn-primary roll", id: "roll-btn", disabled: !S.me.signedIn || !!S.me.can.move || S.busy, onclick: () => act("move") }, icon("dice-5"), "Spin"),
+    h("small", { class: "roll-why" }, !S.me.signedIn ? "Connect a wallet to spin" : S.me.can.move || (sp.enabled ? `${sp.left || 0} spin${sp.left === 1 ? "" : "s"} left` : "Free spin ready")));
 }
 
 function renderBoard() {
   if (WANT_3D && !S.no3d) return renderBoard3D();
   const board = clear($("#board"));
   const c = S.city;
-  const byPos = new Map();
-  for (const p of c.players) { if (!byPos.has(p.position)) byPos.set(p.position, []); byPos.get(p.position).push(p); }
   const myPos = S.me.signedIn ? S.me.position : null;
-  const target = c.event && c.event.kind === "crisis" ? c.event.target : null;
-  for (const s of c.stops) {
-    const g = gridPos(s.id);
-    const d = district(s.id);
-    const hood = s.hood ? c.neighborhoods[s.hood] : null;
-    const cls = ["space", `side-${g.side}`, CORNERS.has(s.id) ? "corner" : "", d ? "prop" : `special ${s.type}`, s.id === target ? "target" : "", s.id === myPos ? "mine" : "", d && !d.next ? "complete" : ""].join(" ");
-    const players = (byPos.get(s.id) || []).filter((p) => !(S.me.signedIn && p.name === S.me.user.name));
-    const tile = h("button", {
-      class: cls, "data-stop": s.id, style: { "grid-row": g.row, "grid-column": g.col, ...(hood ? { "--hc": hood.color } : {}) },
-      onclick: () => openDrawer(s.id), "aria-label": `${s.name}${d ? `, Level ${d.level}` : ""}`,
-    },
-      d ? h("span", { class: "band" }, h("span", { class: "floors" }, [1, 2, 3, 4, 5].map((n) => h("i", { class: n <= d.level ? "on" : "" })))) : null,
-      h("span", { class: "nm" }, s.name),
-      d ? h("span", { class: "lvl" }, `LV ${d.level}`) : h("span", { class: "sic" }, icon(STOP_ICON[s.type] || "map-pin")),
-      d ? h("span", { class: "xp" }, h("i", { style: { width: d.next ? pct(d.xp, d.next) : "100%" } })) : h("span", { class: "sub" }, s.type === "desk" ? "Dispatch" : s.type === "station" ? "GO · +25" : s.type === "vault" ? "Vault" : s.type === "workshop" ? "+20 · +1⚡" : "+5 Inf"),
-      h("span", { class: "tokens" }, players.slice(0, 4).map((p) => avatar(p.name, p.seed)), players.length > 4 ? h("span", { class: "more" }, `+${players.length - 4}`) : null));
-    add(board, tile);
+  for (const st of c.stops) {
+    const g = gridPos(st.id), coin = coinAt(c, st.id);
+    add(board, h("button", { class: ["space", coin ? "has" : "", st.type === "station" || st.type === "vault" ? "special" : "", st.id === myPos ? "mine" : ""].join(" "), "data-stop": st.id, style: { "grid-row": g.row, "grid-column": g.col }, onclick: () => openDrawer(st.id), "aria-label": spaceName(c, st.id) },
+      coin && coin.image ? h("img", { src: coin.image, alt: "" }) : null,
+      h("span", { class: "nm" }, st.type === "station" ? "START" : st.type === "vault" ? "VAULT" : coin ? `$${coin.symbol}` : String(st.id).padStart(2, "0"))));
   }
-  // City center
-  const center = h("div", { class: "center" },
-    h("div", { class: "center-top" },
-      h("div", { class: "brand" }, h("span", { class: "kick" }, "Community board"), h("b", {}, "TEK CITY")),
-      h("div", { class: "dice-box" },
-        h("div", { class: "die", id: "die" }, pips(S.lastRoll || 0)),
-        h("button", { class: "btn btn-primary roll", id: "roll-btn", disabled: !S.me.signedIn || !!S.me.can.move || S.busy, onclick: () => act("move"), title: S.me.signedIn ? (S.me.can.move || "") : "Join to roll" }, icon("dice-5"), "Roll"),
-        h("small", { class: "roll-why" }, !S.me.signedIn ? "Join the city to roll" : S.me.can.move || "Costs 2 Energy · once per round"))),
-    h("div", { id: "event" }));
-  add(board, center);
-  // my token (animated separately)
-  if (S.me.signedIn) add(board, h("span", { class: "my-token", id: "my-token" }, avatar(S.me.user.name, S.me.user.seed, "me")));
-  requestAnimationFrame(() => placeToken(myPos, false));
-  const legend = clear($("#legend"));
-  for (const [k, n] of Object.entries(c.neighborhoods)) add(legend, h("span", { style: { "--hc": n.color } }, h("i"), `${n.name} · ${n.levels} lv`));
+  add(board, h("div", { class: "center" }, "T E K   C I T Y"));
 }
 
 function pips(n) {
@@ -243,67 +176,6 @@ function placeToken(pos, animate = true) {
 }
 window.addEventListener("resize", () => requestAnimationFrame(() => placeToken(S.me.signedIn ? S.me.position : null, false)));
 
-function renderGoal() {
-  const g = S.city.goal, c = S.city;
-  const el = clear($("#goal"));
-  add(el, 
-    h("div", { class: `stab ${c.stability <= 30 ? "low" : ""}` }, h("div", { class: "k" }, "Stability"), h("div", { class: "v" }, `${c.stability}%`), bar(`${c.stability}%`)),
-    h("div", { class: "lv" }, h("div", { class: "k" }, "District levels"), h("div", { class: "v" }, `${g.levels} / ${g.levelsNeeded}`), bar(pct(g.levels, g.levelsNeeded))),
-    h("div", { class: "vm" }, h("div", { class: "k" }, "Vault milestones"), h("div", { class: "v" }, `${g.milestones} / ${g.milestonesNeeded}`), bar(pct(g.milestones, g.milestonesNeeded))));
-  const ban = $("#day-banner");
-  ban.className = "day-banner";
-  if (c.dayStatus === "thrived") { ban.classList.add("show", "thrived"); ban.textContent = "TEK CITY THRIVES today. Goal complete: everyone who played earned the City Thrives badge. Keep building for the leaderboard."; }
-  else if (c.dayStatus === "blackout") { ban.classList.add("show", "blackout"); ban.textContent = c.recovery ? `Blackout. Today's goal is lost. Recovery until round ${c.recovery}: contributions earn half XP.` : "Blackout. Today's goal is lost, but the city is back online. Build for tomorrow."; }
-  $("#day-status").textContent = c.dayStatus === "active" ? "in progress" : c.dayStatus;
-  const mini = clear($("#goal-mini"));
-  add(mini, h("p", {}, `Reach ${g.levelsNeeded} district levels and ${g.milestonesNeeded} Vault milestones before midnight UTC. Keep Stability above zero.`),
-    h("p", { class: "mb0" }, `Resets at 00:00 UTC. ${96 - (c.round ? c.round.number : 0)} rounds left today.`));
-}
-
-function renderVault() {
-  if (LP() && LP().enabled) {
-    const h3 = $("#vault").closest(".panel").querySelector("h3");
-    if (h3 && h3.firstChild) h3.firstChild.textContent = "Community Rewards ";
-    $("#vault-ms").textContent = "";
-    renderRewards($("#vault"), S.lpInfo);
-    return;
-  }
-  const v = S.city.vault;
-  const within = v.progress - v.milestone * v.milestoneSize;
-  const frac = Math.max(0, Math.min(1, within / v.milestoneSize));
-  const C = 2 * Math.PI * 50;
-  const el = clear($("#vault"));
-  const ns = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(ns, "svg"); svg.setAttribute("viewBox", "0 0 120 120");
-  const trk = document.createElementNS(ns, "circle"); trk.setAttribute("class", "trk"); trk.setAttribute("cx", 60); trk.setAttribute("cy", 60); trk.setAttribute("r", 50);
-  const val = document.createElementNS(ns, "circle"); val.setAttribute("class", "val"); val.setAttribute("cx", 60); val.setAttribute("cy", 60); val.setAttribute("r", 50);
-  val.setAttribute("stroke-dasharray", C.toFixed(1)); val.setAttribute("stroke-dashoffset", (C * (1 - frac)).toFixed(1));
-  svg.append(trk, val);
-  add(el, h("div", { class: "vault-meter" }, svg, h("div", { class: "center" }, h("b", {}, `${Math.round(frac * 100)}%`), h("small", {}, `${within} / ${v.milestoneSize}`))),
-    h("p", { class: "vault-info" }, "20% of every contribution fills the Vault. Each milestone unlocks a city-wide build boost and the Vault Keeper badge for active builders."),
-    S.city.boosts.length ? h("div", { class: "boosts" }, S.city.boosts.map((b) => h("span", {}, icon("sparkles"), b))) : null);
-  $("#vault-ms").textContent = `Milestone ${v.milestone}`;
-}
-
-function renderLB() {
-  const rows = S.city.leaderboard[S.lb];
-  const el = clear($("#lb"));
-  if (!rows.length) { add(el, h("li", { class: "empty" }, "No Influence earned yet. Be the first.")); return; }
-  rows.forEach((r, i) => add(el, h("li", { class: S.me.signedIn && r.name === S.me.user.name ? "me" : "" },
-    h("span", { class: "rk" }, `${i + 1}`), h("span", {}, r.name, r.kind === "wallet" ? " ✓" : ""), h("span", { class: "pts" }, fmt(r.influence)))));
-  $$(".tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.lb === S.lb)));
-}
-
-function renderMoods() {
-  const el = clear($("#moods"));
-  for (const m of Object.values(S.city.moods)) {
-    const state = m.value >= 70 ? "hi" : m.value <= 30 ? "lo" : "";
-    add(el, h("div", { class: `mood ${state}` },
-      h("div", { class: "row" }, h("span", {}, m.name), h("span", { class: "mono" }, `${m.value}`)), bar(`${m.value}%`),
-      h("small", {}, state === "hi" ? `Happy: ${m.high}` : state === "lo" ? `Unhappy: ${m.low}` : `Neutral. Over 70: ${m.high.toLowerCase()}.`)));
-  }
-}
-
 function renderFeed() {
   const el = clear($("#feed"));
   for (const a of S.city.activity) add(el, h("li", { class: a.kind }, h("time", {}, fmtTime(a.at)), h("span", {}, a.text)));
@@ -312,26 +184,16 @@ function renderFeed() {
 function renderMobile() {
   const el = clear($("#mobile-bar"));
   if (!S.me.signedIn) {
-    add(el, h("button", { onclick: () => openSignIn(), style: { "grid-column": "1 / -1" } }, icon("play"), "Join the city", h("small", {}, "Guest or wallet")));
+    add(el, h("button", { onclick: () => openSignIn(true), style: { "grid-column": "1 / -1" } }, icon("wallet"), "Connect wallet", h("small", {}, "Phantom · Solflare · Backpack")));
     return;
   }
-  const m = S.me, here = stop(m.position);
-  const b = (ic, label, reason, fn, sub) => h("button", { disabled: !!reason || S.busy, onclick: fn }, icon(ic), label, h("small", {}, reason || sub));
-  if (LP() && LP().enabled) {
-    add(el,
-      b("dice-5", "Spin", m.can.move, () => act("move"), `${(m.spins && m.spins.left) || 0} left`),
-      b("rocket", "This space", here && here.type !== "station" ? null : "Spin first", () => openDrawer(here.id), "Launch / grow"),
-      b("wallet", m.user.wallet ? "Wallet" : "Link", null, () => (m.user.wallet ? openProfile() : openSignIn(true)), m.user.wallet ? m.user.wallet.short : "Phantom"),
-      b("vault", "Rewards", null, () => $("#vault").scrollIntoView({ behavior: "smooth", block: "center" }), "Pool"));
-    return;
-  }
-  add(el, 
-    b("circle-check", "Check in", m.can.checkin, () => act("checkin"), "+Credits"),
-    b("train-front", "Ride", m.can.move, () => act("move"), "2 Energy"),
-    b("hammer", "Build", m.can.contribute, () => openDrawer(here && here.type === "district" ? here.id : firstOpenDistrict()), `${m.contributionsLeft} left`),
-    S.city.event && S.city.event.kind === "crisis"
-      ? b("siren", "Crisis", null, () => openDrawer(S.city.event.target), "Help now")
-      : b("gavel", "Vote", m.can.vote, () => $("#event").scrollIntoView({ behavior: "smooth", block: "center" }), "City Brief"));
+  const m = S.me, here = stop(m.position), sp = m.spins || {};
+  const b = (ic, label, reason, fn, sub) => h("button", { disabled: !!reason || S.busy, onclick: fn }, icon(ic), label, h("small", {}, reason ? "--" : sub));
+  add(el,
+    b("dice-5", "Spin", m.can.move, () => act("move"), sp.enabled ? `${sp.left || 0} left` : "Ready"),
+    b("square", "Space", here && here.type !== "station" ? null : "Spin first", () => openDrawer(here.id), spaceName(S.city, m.position)),
+    b("wallet", "Profile", null, () => openProfile(), m.user.wallet ? m.user.wallet.short : "Guest"),
+    b("vault", "Pool", null, () => $("#vault").scrollIntoView({ behavior: "smooth", block: "center" }), S.lpInfo ? `${sol(S.lpInfo.rewards.poolLamports || 0)}` : "--"));
 }
 
 // ------------------------------------------------------------------ drawer
@@ -347,64 +209,18 @@ function closeDrawer() {
   S.drawer = null;
   $("#drawer").classList.remove("open"); $("#scrim").classList.remove("open"); $("#drawer").setAttribute("aria-hidden", "true");
 }
-let amount = 50;
 function renderDrawer() {
   const dr = clear($("#drawer"));
   const s = stop(S.drawer); if (!s) return;
-  const d = district(s.id);
-  const hood = s.hood ? S.city.neighborhoods[s.hood] : null;
-  if (hood) dr.style.setProperty("--hc", hood.color); else dr.style.setProperty("--hc", "#e2b33c");
-  const header = h("header", {}, h("span", { class: "band" }),
-    h("span", { class: "kicker" }, hood ? hood.name : "Transit stop"), h("h2", { id: "dr-title" }, s.name),
-    h("span", { class: "muted ink2 small" }, d ? `Stop ${s.id} · Level ${d.level} of 5` : `Stop ${s.id}`),
+  const coin = coinAt(S.city, s.id);
+  const kick = s.type === "station" ? "Corner" : s.type === "vault" ? "Jackpot space" : `Space ${String(s.id).padStart(2, "0")}`;
+  const title = s.type === "station" ? "START" : coin ? coin.name : s.type === "vault" ? "The Vault" : "Open space";
+  const header = h("header", {}, h("span", { class: "kicker" }, kick), h("h2", { id: "dr-title" }, title),
+    h("span", { class: "muted small" }, coin ? `$${coin.symbol} · ${sol(coin.grownLamports)} SOL in` : s.type === "station" ? "Pass for a free spin" : "No coin yet"),
     h("button", { class: "close", onclick: closeDrawer, "aria-label": "Close" }, icon("x")));
   const body = h("div", { class: "body" });
   add(dr, header, body);
-  if (LP() && LP().enabled) {
-    if (d) add(body, h("div", { class: "kv" },
-      h("div", {}, h("div", { class: "k" }, "Level"), h("div", { class: "v" }, `${d.level} / 5`)),
-      h("div", {}, h("div", { class: "k" }, "Growth"), h("div", { class: "v" }, d.next ? `${fmt(d.xp)} / ${fmt(d.next)}` : "Complete"))),
-      h("div", { class: "xpbar" }, bar(d.next ? pct(d.xp, d.next) : "100%")));
-    renderCoinSection(body, S, s, LPCTX);
-    renderIcons(dr);
-    return;
-  }
-  if (!d) {
-    add(body, h("p", {}, s.text || ""), h("p", { class: "small ink2" }, "Special stops trigger when you land on them after riding the Transit Line. The server decides the roll."));
-    renderIcons(dr);
-    return;
-  }
-  const m = S.me;
-  const crisis = S.city.event && S.city.event.kind === "crisis" && S.city.event.target === d.id ? S.city.event : null;
-  add(body, 
-    h("div", { class: "kv" },
-      h("div", {}, h("div", { class: "k" }, "Level"), h("div", { class: "v" }, `${d.level} / 5`)),
-      h("div", {}, h("div", { class: "k" }, "District XP"), h("div", { class: "v" }, d.next ? `${fmt(d.xp)} / ${fmt(d.next)}` : "Complete"))),
-    h("div", { class: "xpbar" }, bar(d.next ? pct(d.xp, d.next) : "100%")),
-    h("div", { class: "effect" }, h("b", {}, `${hood.name} effect: `), hood.effect),
-    crisis ? h("div", { class: "reason" }, icon("siren"), `Crisis here: ${fmt(crisis.progress)} / ${fmt(crisis.requirement)} XP needed before the tick.`) : null);
-  if (!d.next) { add(body, h("p", {}, "This district is fully built for today. Help another district level up.")); renderIcons(dr); return; }
-  if (!m.signedIn) { add(body, h("button", { class: "btn btn-primary", onclick: () => { closeDrawer(); openSignIn(); } }, icon("play"), "Join to contribute")); renderIcons(dr); return; }
-  const max = Math.max(S.city.rules.minContribution, Math.min(S.city.rules.maxContribution, Math.floor(m.resources.build_credits / 5) * 5));
-  amount = Math.max(S.city.rules.minContribution, Math.min(amount, max));
-  const onSite = m.onSite === d.id;
-  const out = h("output", {}, String(amount));
-  const preview = h("p", { class: "preview" });
-  const updatePreview = () => {
-    out.textContent = String(amount);
-    preview.textContent = `About +${Math.round(amount * (onSite ? 1.5 : 1))} District XP${onSite ? " (on-site 1.5x)" : ""}, +${Math.floor(amount / 10)} Influence, +${Math.floor(amount * 0.2)} Vault progress. Costs 1 Energy. Final XP is calculated by the server (citizen moods and boosts apply).`;
-  };
-  const step = (dlt) => { amount = Math.max(S.city.rules.minContribution, Math.min(max, amount + dlt)); updatePreview(); };
-  updatePreview();
-  const reason = m.can.contribute || (m.resources.build_credits < S.city.rules.minContribution ? "Not enough Build Credits." : null);
-  add(body, 
-    h("div", {}, h("div", { class: "k small ink2" }, "Contribution (Build Credits)"),
-      h("div", { class: "amount" }, h("button", { onclick: () => step(-5), "aria-label": "Less" }, "−"), out, h("button", { onclick: () => step(5), "aria-label": "More" }, "+"))),
-    h("div", { class: "presets" }, [25, 50, 100, 200].filter((v) => v <= max).map((v) => h("button", { onclick: () => { amount = v; updatePreview(); } }, String(v))), h("button", { onclick: () => { amount = max; updatePreview(); } }, `Max ${max}`)),
-    preview,
-    reason ? h("div", { class: "reason" }, icon("info"), reason) : null,
-    h("button", { class: "btn btn-primary", disabled: !!reason || S.busy, onclick: () => act("contribute", { districtId: d.id, amount }) }, icon("hammer"), `Contribute ${amount}`),
-    h("p", { class: "small ink2" }, onSite ? "You're on site this round." : "Tip: land on this district with the Transit Line first to earn 1.5x XP."));
+  renderCoinSection(body, S, s, LPCTX);
   renderIcons(dr);
 }
 $("#scrim").addEventListener("click", closeDrawer);
@@ -419,12 +235,9 @@ async function act(type, body = {}) {
     if (type === "move") {
       await animatePath(r.path, r.roll);
       toast(r.message, "ok", { dice: r.roll, ms: 6000 });
+      if (r.passedGo) toast("You passed START: +1 free spin.", "gold", { ms: 6000 });
       if (r.jackpotWin && r.jackpotWin.lamports > 0) toast(`Jackpot: ${(r.jackpotWin.lamports / 1e9).toFixed(3)} SOL from the community pool is on its way to your wallet.`, "gold", { ms: 10000 });
-      if (LP() && LP().enabled && r.stop && r.stop.type !== "station") setTimeout(() => openDrawer(r.stop.id), 600);
-    } else if (type === "contribute") {
-      toast(r.message, "gold");
-      if (r.firstBadge) toast("Badge earned: First Brick", "gold");
-      closeDrawer();
+      if (r.stop && r.stop.type !== "station") setTimeout(() => openDrawer(r.stop.id), 600);
     } else toast(r.message);
   } catch (e) {
     toast(e.message, "err");
@@ -458,36 +271,37 @@ function closeModal() { $("#modal").classList.remove("open"); }
 $("#modal").addEventListener("click", (e) => { if (e.target.id === "modal") closeModal(); });
 
 function safetyNote() {
-  return h("div", { class: "note" }, icon("shield-check"), h("span", {}, "Signing in only signs a text message. It is not a transaction, costs nothing, and gives no access to funds. TEK CITY never asks for your seed phrase or private key."));
+  return h("div", { class: "note" }, icon("shield-check"), h("span", {}, "Connecting signs a text message only. It is not a transaction and gives no access to funds. TEK CITY never asks for your seed phrase."));
 }
 
 function openSignIn(walletFirst = false) {
   const status = h("p", { class: "small", role: "status" });
-  const name = h("input", { id: "guest-name", maxlength: 20, minlength: 2, placeholder: "Builder name", autocomplete: "nickname", value: "" });
+  const name = h("input", { id: "guest-name", maxlength: 20, minlength: 2, placeholder: "Display name", autocomplete: "nickname", value: "" });
   const startGuest = async () => {
     const v = name.value.trim();
     if (!/^[A-Za-z0-9][A-Za-z0-9 _.-]{1,19}$/.test(v)) { status.textContent = "Use 2 to 20 letters, numbers, spaces, dots, dashes or underscores."; return; }
     status.textContent = "Joining…";
-    try { const r = await api.post("/api/guest", { name: v }); S.me = r.me; closeModal(); await refreshAll(); toast(`Welcome to TEK CITY, ${v}.`); maybeTutorial(); }
+    try { const r = await api.post("/api/guest", { name: v }); S.me = r.me; closeModal(); await refreshAll(); toast(`Signed in as ${v}.`); maybeTutorial(); }
     catch (e) { status.textContent = e.message; }
   };
   name.addEventListener("keydown", (e) => { if (e.key === "Enter") startGuest(); });
-  const guest = h("div", {}, h("h2", {}, "Join the city"), h("p", { class: "ink2" }, "Play instantly as a guest. You can link a wallet later to keep a verified identity."),
-    name, h("div", { class: "row" }, h("button", { class: "btn btn-primary", onclick: startGuest }, icon("play"), "Play as guest")));
-  const wallets = walletEnabled() ? walletSection(status) : h("p", { class: "small ink2 mt16" }, "Wallet sign-in is turned off right now.");
-  openModal(walletFirst ? [wallets, h("hr", { class: "mt16" }), guest, status] : [guest, wallets, status]);
+  const guest = h("div", {}, h("h3", {}, "Or continue as a guest"), h("p", { class: "small" }, "Guests can look around and move on the board. Launching and buying needs a wallet."),
+    name, h("div", { class: "row" }, h("button", { class: "btn btn-ghost", onclick: startGuest }, "Continue as guest")));
+  const wallets = walletEnabled() ? walletSection(status, { title: "Choose a Solana wallet" }) : h("p", { class: "small" }, "Wallet sign-in is turned off right now.");
+  openModal([h("h2", {}, "Connect to TEK CITY"), h("p", {}, "Use the wallet you trade with on pump.fun and your pump.fun profile links automatically."), wallets, h("hr"), guest, status]);
+  void walletFirst;
 }
 
-function walletSection(status, { purpose = "login", title = "Or sign in with a Solana wallet" } = {}) {
+function walletSection(status, { purpose = "login", title = "Choose a Solana wallet" } = {}) {
   const list = h("div", { class: "wallet-list" });
   const fill = () => {
     clear(list);
     const ws = listWallets();
     for (const w of ws) {
-      add(list, h("button", { onclick: () => doWallet(w, status, purpose) }, w.icon ? h("img", { src: w.icon, alt: "" }) : icon("wallet"), w.name, h("span", { class: "muted small" }, " · signature only")));
+      add(list, h("button", { onclick: () => doWallet(w, status, purpose) }, w.icon ? h("img", { src: w.icon, alt: "" }) : icon("wallet"), w.name, h("span", { class: "muted small" }, "Detected")));
     }
     if (!ws.length) {
-      if (isMobile()) add(list, h("a", { class: "btn btn-cream", href: phantomBrowseLink(), rel: "noopener" }, icon("wallet"), "Open TEK CITY in the Phantom app"));
+      if (isMobile()) add(list, h("a", { class: "btn btn-cream", href: phantomBrowseLink(), rel: "noopener" }, icon("wallet"), "Open in the Phantom app"));
       else add(list, h("p", { class: "small ink2" }, "No Solana wallet detected in this browser. Install a wallet extension such as Phantom from its official site, then reload this page."));
     }
     renderIcons(list);
@@ -502,7 +316,7 @@ async function doWallet(w, status, purpose) {
   try {
     const r = await signInWith(w, { purpose });
     S.wallet = w;
-    S.me = r.me;
+    S.me = r.me; S.pump = null;
     closeModal();
     await refreshAll();
     toast(purpose === "reauth" ? "Confirmed." : `Signed in as ${r.me.user.name}. Wallet verified.`);
@@ -517,28 +331,29 @@ function openProfile() {
   const status = h("p", { class: "small", role: "status" });
   const name = h("input", { maxlength: 20, value: u.name });
   const save = async () => { try { const r = await api.post("/api/profile", { name: name.value.trim() }); S.me = r.me; status.textContent = "Saved."; await refreshAll(); } catch (e) { status.textContent = e.message; } };
-  const signOut = async () => { try { await api.post("/api/auth/logout", {}); await disconnect(S.wallet); S.me = { signedIn: false }; closeModal(); await refreshAll(); toast("Signed out.", "info"); } catch (e) { status.textContent = e.message; } };
+  const signOut = async () => { try { await api.post("/api/auth/logout", {}); await disconnect(S.wallet); S.me = { signedIn: false }; S.pump = null; closeModal(); await refreshAll(); toast("Signed out.", "info"); } catch (e) { status.textContent = e.message; } };
+  const pc = h("div", { class: "pumpcard" });
   openModal([
-    h("h2", {}, "Your builder"),
-    h("p", { class: "ink2" }, u.wallet ? `Verified wallet ${u.wallet.short} (signature only, ${S.config ? S.config.solanaNetwork : "devnet"}).` : "Guest account. Link a wallet to keep a verified identity across devices."),
-    h("label", { class: "small ink2" }, "Display name"), name,
-    h("div", { class: "row" }, h("button", { class: "btn btn-ghost", onclick: save }, "Save name")),
-    h("h3", { class: "mt16" }, "Badges"),
-    m.badges.length ? h("ul", {}, m.badges.map((b) => h("li", {}, h("b", {}, b.name), ` · ${b.description}`))) : h("p", { class: "small ink2" }, "No badges yet. Contribute to a district to earn First Brick."),
-    !u.wallet && walletEnabled() ? walletSection(status, { title: "Link a wallet" }) : null,
+    h("h2", {}, "Profile"),
+    h("p", {}, u.wallet ? `Wallet ${u.wallet.short} on Solana ${S.config ? S.config.solanaNetwork : ""}.` : "Guest account. Connect a wallet to launch and buy coins."),
+    h("label", { class: "small" }, "Display name"), name,
+    h("div", { class: "row" }, h("button", { class: "btn btn-ghost btn-sm", onclick: save }, "Save name")),
+    pc,
+    !u.wallet && walletEnabled() ? walletSection(status, { purpose: "login", title: "Connect a wallet" }) : null,
     status,
     h("div", { class: "row" }, h("button", { class: "btn btn-ghost", onclick: closeModal }, "Close"), h("button", { class: "btn btn-red", onclick: signOut }, icon("log-out"), "Sign out")),
   ].filter(Boolean));
+  renderPump(pc, S, LPCTX).then(() => renderIcons(pc));
 }
 
 // ------------------------------------------------------------------ tutorial
 const TUT_OLD = [];
 const TUT = [
-  { ic: "landmark", t: "Welcome to TEK CITY", b: "A board game launchpad for Pump.fun. Every space on the board can become a coin. Spin, land on a space, and launch or grow the coin that's there." },
-  { ic: "dice-5", t: "Free spins from TEK CITY", b: "Every 500,000 TEK CITY you hold gives you 1 free spin. Buy more and you get more spins. Link Phantom so the game can see your balance." },
-  { ic: "rocket", t: "Launch or grow", b: "Empty space: launch your own coin on Pump.fun and the space becomes your coin. Space with a coin: grow it by buying in, or take the space over by launching with a first buy at least as big as its biggest buy-in." },
-  { ic: "vault", t: "Community rewards", b: "20% of creator fees from every coin launched here fill the community pool. Land on the Community Vault to win the biggest share. Every hour, part of the pool is split across the top TEK CITY holders." },
-  { ic: "wallet", t: "Your wallet, your keys", b: "You approve every launch and buy in your own Phantom wallet. TEK CITY never asks for your seed phrase or private key." },
+  { ic: "layout-grid", t: "Every space is a coin", b: "The board has 24 spaces. They start empty. When someone launches a coin on a space, its name and image take that space." },
+  { ic: "dice-5", t: "Spins", b: "Every 500,000 TEK CITY you buy earns 1 free spin. Passing START earns another. The server rolls the die." },
+  { ic: "rocket", t: "Launch, grow, take over", b: "Land on an empty space to launch your coin on Pump.fun. Land on a coin to buy in, or take the space with a first buy at least as big as its largest buy-in." },
+  { ic: "vault", t: "Community pool", b: "20% of creator fees from every coin on the board fill the pool. Land on the Vault for 60% of it. Every hour, 20% is split across the top holders." },
+  { ic: "shield-check", t: "Your keys stay yours", b: "You approve every launch and buy in your own wallet. TEK CITY never asks for your seed phrase or private key." },
 ];
 let tutStep = 0;
 function openTutorial(i = 0) {
@@ -550,7 +365,7 @@ function openTutorial(i = 0) {
     h("div", { class: "row" },
       h("button", { class: "btn btn-ghost", onclick: finishTutorial }, "Skip"),
       i > 0 ? h("button", { class: "btn btn-ghost", onclick: () => openTutorial(i - 1) }, "Back") : null,
-      h("button", { class: "btn btn-primary", onclick: () => (i < TUT.length - 1 ? openTutorial(i + 1) : finishTutorial()) }, i < TUT.length - 1 ? "Next" : "Start building")),
+      h("button", { class: "btn btn-primary", onclick: () => (i < TUT.length - 1 ? openTutorial(i + 1) : finishTutorial()) }, i < TUT.length - 1 ? "Next" : "Done")),
   ].filter(Boolean));
 }
 async function finishTutorial() {
@@ -562,6 +377,7 @@ function maybeTutorial() { let seen = false; try { seen = localStorage.getItem("
 
 // ------------------------------------------------------------------ clock + live updates
 function tickClock() {
+  const d = new Date(); const np = $("#c-next"); if (np) np.textContent = `${String(59 - d.getMinutes()).padStart(2, "0")}:${String(59 - d.getSeconds()).padStart(2, "0")}`;
   const c = S.city; if (!c || !c.round) return;
   const ms = new Date(c.round.endsAt) - Date.now();
   const box = $("#countdown-box");
@@ -579,7 +395,6 @@ function connectLive() {
   socket.on("disconnect", () => { $("#live-dot").textContent = "reconnecting"; });
 }
 
-$$(".tabs button").forEach((b) => b.addEventListener("click", () => { S.lb = b.dataset.lb; renderLB(); }));
 
 (async function init() {
   renderIcons();
@@ -589,7 +404,7 @@ $$(".tabs button").forEach((b) => b.addEventListener("click", () => { S.lb = b.d
     refreshLaunchpad();
     await refreshCity();
     render();
-    if (!S.me.signedIn) openSignIn(location.hash === "#wallet");
+    if (!S.me.signedIn) { if (location.hash === "#wallet") openSignIn(true); }
     else maybeTutorial();
   } catch (e) {
     toast(e.message || "Couldn't reach the city. Retrying…", "err");

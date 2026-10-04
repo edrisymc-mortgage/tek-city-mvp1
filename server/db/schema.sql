@@ -395,3 +395,43 @@ CREATE TABLE IF NOT EXISTS jackpots (
   round_id    bigint,
   created_at  timestamptz NOT NULL DEFAULT now()
 );
+
+-- Spins are earned per TEK CITY *bought* (on-chain buys signed by the player's wallet).
+CREATE TABLE IF NOT EXISTS tek_buys (
+  signature text PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  wallet text NOT NULL,
+  tokens numeric NOT NULL,
+  spent_lamports bigint NOT NULL DEFAULT 0,
+  block_time timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS tek_buys_user ON tek_buys(user_id);
+CREATE TABLE IF NOT EXISTS tek_scan (
+  token_account text PRIMARY KEY,
+  last_sig text,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+-- Linked pump.fun profiles (verified by a code placed in the pump.fun bio).
+CREATE TABLE IF NOT EXISTS pump_links (
+  user_id uuid PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  address text NOT NULL UNIQUE,
+  username text,
+  avatar text,
+  code text NOT NULL,
+  verified_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+-- Passing START grants a bonus free spin.
+ALTER TABLE player_resources ADD COLUMN IF NOT EXISTS bonus_total int NOT NULL DEFAULT 0;
+ALTER TABLE player_resources ADD COLUMN IF NOT EXISTS bonus_left int NOT NULL DEFAULT 0;
+-- Market-cap milestones for the TEK CITY coin.
+CREATE TABLE IF NOT EXISTS milestones (
+  id         text PRIMARY KEY,
+  reached_at timestamptz NOT NULL DEFAULT now(),
+  mcap_usd   bigint,
+  status     text NOT NULL DEFAULT 'pending',
+  results    jsonb NOT NULL DEFAULT '{}'::jsonb,
+  last_try   timestamptz,
+  done_at    timestamptz
+);

@@ -20,15 +20,17 @@ for (const d of ["js", "css", "fonts", "img"]) fs.mkdirSync(path.join(A, d), { r
   });
   for (const f of ["base.css", "play.css"]) fs.copyFileSync(path.join(ROOT, "client", "css", f), path.join(A, "css", f));
   const fonts = {
-    "fraunces-600.woff2": "@fontsource/fraunces/files/fraunces-latin-600-normal.woff2",
-    "fraunces-800.woff2": "@fontsource/fraunces/files/fraunces-latin-800-normal.woff2",
-    "plex-sans-400.woff2": "@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-400-normal.woff2",
-    "plex-sans-500.woff2": "@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-500-normal.woff2",
-    "plex-sans-600.woff2": "@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-600-normal.woff2",
-    "plex-mono-500.woff2": "@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-500-normal.woff2",
+    "geist-400.woff2": "@fontsource/geist-sans/files/geist-sans-latin-400-normal.woff2",
+    "geist-500.woff2": "@fontsource/geist-sans/files/geist-sans-latin-500-normal.woff2",
+    "geist-600.woff2": "@fontsource/geist-sans/files/geist-sans-latin-600-normal.woff2",
+    "geist-700.woff2": "@fontsource/geist-sans/files/geist-sans-latin-700-normal.woff2",
+    "geist-mono-400.woff2": "@fontsource/geist-mono/files/geist-mono-latin-400-normal.woff2",
+    "geist-mono-500.woff2": "@fontsource/geist-mono/files/geist-mono-latin-500-normal.woff2",
   };
   for (const [out, src] of Object.entries(fonts)) fs.copyFileSync(require.resolve(src), path.join(A, "fonts", out));
-  fs.writeFileSync(path.join(A, "img", "favicon.svg"), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" rx="8" fill="#173d2d" stroke="#c9972b" stroke-width="1.5"/><path d="M8 23V14h4v9M14 23V8h4v15M20 23v-6h4v6" fill="#f4ecd8"/></svg>`);
+  fs.writeFileSync(path.join(A, "img", "favicon.svg"), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0b0c0e"/><g fill="#ededeb">${[0,1,2,3,4].flatMap((i)=>[0,1,2,3,4].filter((j)=>i%4===0||j%4===0).map((j)=>`<rect x="${4+i*5}" y="${4+j*5}" width="4" height="4" rx="1"/>`)).join("")}</g></svg>`);
+  const IMG = path.join(ROOT, "client", "img");
+  if (fs.existsSync(IMG)) for (const f of fs.readdirSync(IMG)) fs.copyFileSync(path.join(IMG, f), path.join(A, "img", f));
   const v = crypto.createHash("sha256").update(fs.readdirSync(path.join(A, "js")).map((f) => fs.readFileSync(path.join(A, "js", f))).join("") + fs.readFileSync(path.join(A, "css", "play.css")) + fs.readFileSync(path.join(A, "css", "base.css"))).digest("hex").slice(0, 10);
   for (const [name, fn] of Object.entries(PAGES)) fs.writeFileSync(path.join(PUB, `${name}.html`), fn().replace(/__V__/g, v));
   console.log(`built ${Object.keys(PAGES).length} pages, assets v=${v}`);
