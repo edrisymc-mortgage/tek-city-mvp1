@@ -338,7 +338,7 @@ export class Board3D {
     const cam = this.camera, a = cam.aspect || 1;
     const elev = (this.mobile ? 64 : 50) * Math.PI / 180;
     const vt = Math.tan((cam.fov * Math.PI) / 360), ht = vt * a;
-    const d = Math.max(4.25 / ht, (this.mobile ? 3.25 : 3.6) / vt) + (this.mobile ? 1.6 : 0.9);
+    const d = Math.max((this.mobile && a < 1 ? 5.3 : 4.25) / ht, (this.mobile ? 3.25 : 3.6) / vt) + (this.mobile ? 1.6 : 0.9);
     const tz = this.mobile ? -0.1 : 0.2;
     cam.position.set(0, Math.sin(elev) * d, Math.cos(elev) * d + tz);
     cam.lookAt(0, 0, tz);
