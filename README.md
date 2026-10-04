@@ -10,7 +10,7 @@ Server-authoritative, real-time multiplayer city board game. Virtual credits onl
 - **The Gate:** +200 every time you pass it.
 - **Community Vault:** shared pot funded by fares, fees, and tolls. Vault cards and the Nexus pay out from it.
 - **Power Grid:** collect 10 per build level you hold shares in. **Launch Pad:** pay 50 to fly anywhere.
-- Live feed, player rankings by net worth, refresh-safe sessions (stored in your browser).
+- Live feed, player rankings by net worth, refresh-safe sessions (each browser tab is its own player).
 
 ## Run locally
 ```bash

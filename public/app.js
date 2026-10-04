@@ -8,7 +8,7 @@
   let board = [];
   let rules = {};
   let st = null;
-  let me = localStorage.getItem("tekcity.playerId");
+  let me = sessionStorage.getItem("tekcity.playerId");
   let selected = null;
   let lastSeq = null;
   const shown = {}; // pid -> displayed position (for animation)
@@ -290,7 +290,7 @@
   socket.on("board", (b) => { board = b.board; rules = b.rules; buildBoard(); render(); });
   socket.on("you", ({ playerId }) => {
     me = playerId;
-    if (me) localStorage.setItem("tekcity.playerId", me); else localStorage.removeItem("tekcity.playerId");
+    if (me) sessionStorage.setItem("tekcity.playerId", me); else sessionStorage.removeItem("tekcity.playerId");
     $("actionPanel").dataset.sig = "";
     render();
   });
@@ -299,7 +299,7 @@
     const prevState = st;
     st = s;
     clockSkew = s.serverNow - Date.now();
-    if (me && !s.players.find((p) => p.id === me)) { me = null; localStorage.removeItem("tekcity.playerId"); }
+    if (me && !s.players.find((p) => p.id === me)) { me = null; sessionStorage.removeItem("tekcity.playerId"); }
     if (s.lastMove && prevSeq !== null && s.lastMove.seq !== prevSeq) {
       lastSeq = s.lastMove.seq;
       const mover = s.players.find((p) => p.id === s.lastMove.pid);
@@ -324,7 +324,7 @@
       if (r.error) { $("joinError").textContent = r.error; return; }
       $("joinError").textContent = "";
       me = r.playerId;
-      localStorage.setItem("tekcity.playerId", me);
+      sessionStorage.setItem("tekcity.playerId", me);
       render();
     });
   });
