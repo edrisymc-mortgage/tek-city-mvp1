@@ -285,7 +285,7 @@ export class Board3D {
     }
 
     this.controls = new OrbitControls(cam, r.domElement);
-    Object.assign(this.controls, { enablePan: false, enableDamping: true, dampingFactor: 0.07, minDistance: 7, maxDistance: 20, minPolarAngle: 0.2, maxPolarAngle: 1.2, rotateSpeed: 0.55, zoomSpeed: 0.7 });
+    Object.assign(this.controls, { enablePan: false, enableDamping: true, dampingFactor: 0.07, minDistance: 7, maxDistance: this.mobile ? 42 : 24, minPolarAngle: 0.2, maxPolarAngle: 1.2, rotateSpeed: 0.55, zoomSpeed: 0.7 });
     this.fit();
     if (this.mobile) { this.controls.enabled = false; r.domElement.style.touchAction = "pan-y"; }
 
