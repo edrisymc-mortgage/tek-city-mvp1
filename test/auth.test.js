@@ -205,3 +205,9 @@ test("security headers: CSP, frame denial, no x-powered-by", async () => {
   const h = await r.json();
   assert.equal(h.status, "ok");
 });
+
+test("mainnet sign-in message uses a SIWS chain id wallets accept", () => {
+  const { buildMessage } = require("../server/auth/siws");
+  const m = buildMessage({ domain: "x.example", uri: "https://x.example", address: "A", nonce: "n", issuedAt: "t", expiresAt: "e", network: "mainnet-beta", purpose: "login" });
+  assert.match(m, /\nChain ID: solana:mainnet\n/);
+});

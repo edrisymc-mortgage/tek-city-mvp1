@@ -25,7 +25,8 @@ function buildMessage({ domain, uri, address, nonce, issuedAt, expiresAt, networ
     "",
     `URI: ${uri}`,
     "Version: 1",
-    `Chain ID: solana:${network}`,
+    // SIWS only allows mainnet/testnet/devnet/localnet. Phantom rejects "solana:mainnet-beta" as malformed.
+    `Chain ID: solana:${network === "mainnet-beta" ? "mainnet" : network}`,
     `Nonce: ${nonce}`,
     `Issued At: ${issuedAt}`,
     `Expiration Time: ${expiresAt}`,
