@@ -32,5 +32,13 @@ test("launch requires a linked wallet and being on the space", async () => {
 test("submit rejects unknown or foreign intents", async () => {
   const c = T.client(); await c.start(); await walletLogin(c, wallet());
   const r = await c.post("/api/launchpad/submit", { intentId: "a".repeat(32), signedTx: "A".repeat(200) });
-  assert.equal(r.status, 410);
+  assert.equal(r.status, 404);
+});
+
+test("before OFFICIAL_TOKEN_MINT is set, every player gets 1 free spin per round", async () => {
+  const c = T.client(); await c.start(); await walletLogin(c, wallet());
+  const r = await c.action("move");
+  assert.equal(r.status, 200);
+  const me = await c.get("/api/me");
+  assert.ok(!me.body.spins.holder);
 });

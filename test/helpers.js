@@ -59,7 +59,7 @@ class Client {
 function wallet() {
   const kp = nacl.sign.keyPair();
   return {
-    address: b58encode(kp.publicKey),
+    address: b58encode(kp.publicKey), kp,
     sign: (msg) => Buffer.from(nacl.sign.detached(new TextEncoder().encode(msg), kp.secretKey)).toString("base64"),
   };
 }

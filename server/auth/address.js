@@ -40,6 +40,6 @@ function normalizeAddress(input) {
   return canonical === s ? canonical : null;
 }
 
-const shortAddress = (a) => (a ? `${a.slice(0, 4)}…${a.slice(-4)}` : "");
+const shortAddress = (a) => (a ? `${a.slice(0, 4)}...${a.slice(-4)}` : "");
 
 module.exports = { b58decode, b58encode, normalizeAddress, shortAddress };

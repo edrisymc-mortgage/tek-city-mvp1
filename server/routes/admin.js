@@ -141,6 +141,113 @@ function build(config, { notify }) {
     res.json(data);
   }));
 
+  // ------------------------------------------------------------ Community Fund (records only)
+  // None of these move money. Transfers and spending are signed through the external multisig; these routes
+  // record and verify them on chain. Spending also requires COMMUNITY_FUND_ENABLED and an active written program.
+  const cr = require("../chain/creatorRewards");
+  const { normalizeAddress } = require("../auth/address");
+  r.get("/community/overview", wrap(async (req, res) => {
+    const [ev, al, led, pr, sp] = await Promise.all([
+      db.query(`SELECT id, source_event_id, source_transaction_signature, asset_mint, reward_amount_base_units::text AS amount, verification_status, rejection_reason, received_at FROM creator_reward_events ORDER BY id DESC LIMIT 100`),
+      db.query(`SELECT id, creator_reward_event_id, asset_mint, community_fund_amount_base_units::text AS community, operator_retained_amount_base_units::text AS operator, status, community_transfer_signature FROM creator_reward_allocations ORDER BY id DESC LIMIT 100`),
+      db.query(`SELECT asset_mint, status, SUM(allocated_amount_base_units)::text AS n FROM community_fund_ledger GROUP BY asset_mint, status`),
+      db.query(`SELECT * FROM community_programs ORDER BY id DESC`),
+      db.query(`SELECT * FROM community_fund_spends ORDER BY id DESC LIMIT 100`),
+    ]);
+    await log(req, "community.viewed", {});
+    res.json({ config: { enabled: config.communityFund.enabled, operatorWallet: config.communityFund.operatorWallet || null, treasuryWallet: config.communityFund.treasuryWallet || null, bps: config.communityFund.communityBps, errors: config.communityFund.errors }, events: ev.rows, allocations: al.rows, ledger: led.rows, programs: pr.rows, spends: sp.rows });
+  }));
+  r.post("/community/rescan", wrap(async (req, res) => {
+    const b = v.obj(req.body, { signature: { type: "string", min: 64, max: 100, pattern: /^[1-9A-HJ-NP-Za-km-z]+$/ } });
+    const out = await cr.processSignature(b.signature);
+    await log(req, "community.rescan", { signature: b.signature, out });
+    res.json(out);
+  }));
+  r.post("/community/allocations/:id/approve", wrap(async (req, res) => {
+    const id = v.obj({ id: Number(req.params.id) }, { id: { type: "int", min: 1, max: 1e12 } }).id;
+    const out = await cr.approveAllocation(id);
+    await log(req, "community.allocation_approved", { id, ok: out.ok });
+    res.json(out);
+  }));
+  r.post("/community/allocations/:id/verify-transfer", wrap(async (req, res) => {
+    const id = v.obj({ id: Number(req.params.id) }, { id: { type: "int", min: 1, max: 1e12 } }).id;
+    const b = v.obj(req.body, { signature: { type: "string", min: 64, max: 100, pattern: /^[1-9A-HJ-NP-Za-km-z]+$/ } });
+    const out = await cr.verifyTransfer(id, b.signature);
+    await log(req, "community.transfer_verified", { id, signature: b.signature, ok: out.ok, code: out.code });
+    if (!out.ok) fail(409, out.code, out.message);
+    res.json(out);
+  }));
+  r.post("/community/events/:id/reverse", wrap(async (req, res) => {
+    const id = v.obj({ id: Number(req.params.id) }, { id: { type: "int", min: 1, max: 1e12 } }).id;
+    const b = v.obj(req.body, { reason: { type: "string", min: 5, max: 200 } });
+    const out = await cr.reverseEvent(id, b.reason);
+    await log(req, "community.event_reversed", { id, reason: b.reason, ok: out.ok });
+    if (!out.ok) fail(409, out.code, "Can't reverse this event.");
+    res.json(out);
+  }));
+  r.post("/community/programs", wrap(async (req, res) => {
+    const b = v.obj(req.body, {
+      name: { type: "string", min: 3, max: 120 },
+      category: { type: "enum", values: ["education", "contest", "creator_support", "event", "bug_bounty", "board_participation"] },
+      description: { type: "string", min: 20, max: 4000 },
+      eligibilityRules: { type: "string", min: 20, max: 4000 },
+      abusePrevention: { type: "string", min: 20, max: 4000 },
+      paymentMethod: { type: "string", min: 5, max: 400 },
+      assetMint: { type: "string", min: 3, max: 44 },
+      budgetBaseUnits: { type: "string", min: 1, max: 30, pattern: /^[1-9][0-9]*$/ },
+      startsAt: { type: "string", min: 10, max: 40 },
+      endsAt: { type: "string", min: 10, max: 40 },
+      policyUrl: { type: "string", min: 12, max: 500, pattern: /^https:\/\/[^\s<>"]+$/ },
+    });
+    const st = new Date(b.startsAt), en = new Date(b.endsAt);
+    if (!(st.getTime() > 0) || !(en > st)) fail(400, "bad_dates", "endsAt must be after startsAt.");
+    const row = (await db.query(`INSERT INTO community_programs (name, category, description, eligibility_rules, abuse_prevention, payment_method, asset_mint, budget_base_units, starts_at, ends_at, policy_url, created_by_wallet)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`, [b.name, b.category, b.description, b.eligibilityRules, b.abusePrevention, b.paymentMethod, b.assetMint, b.budgetBaseUnits, st, en, b.policyUrl, req.admin.wallet])).rows[0];
+    await log(req, "community.program_created", { id: row.id, name: b.name });
+    res.json({ id: row.id, status: "draft" });
+  }));
+  r.post("/community/programs/:id/status", wrap(async (req, res) => {
+    const id = v.obj({ id: Number(req.params.id) }, { id: { type: "int", min: 1, max: 1e12 } }).id;
+    const b = v.obj(req.body, { status: { type: "enum", values: ["active", "closed"] } });
+    const r2 = await db.query(`UPDATE community_programs SET status = $2, updated_at = now() WHERE id = $1 RETURNING id`, [id, b.status]);
+    if (!r2.rowCount) fail(404, "not_found", "Program not found.");
+    await log(req, "community.program_status", { id, status: b.status });
+    res.json({ ok: true });
+  }));
+  // Record a spend the multisig already signed. Verified on chain: treasury -> recipient, finalized, within budget and dates.
+  r.post("/community/spends", wrap(async (req, res) => {
+    if (!config.communityFund.enabled) fail(403, "fund_disabled", "The Community Fund is disabled (COMMUNITY_FUND_ENABLED=false).");
+    const b = v.obj(req.body, {
+      programId: { type: "int", min: 1, max: 1e12 },
+      recipient: { type: "string", min: 32, max: 44 },
+      amountBaseUnits: { type: "string", min: 1, max: 30, pattern: /^[1-9][0-9]*$/ },
+      signature: { type: "string", min: 64, max: 100, pattern: /^[1-9A-HJ-NP-Za-km-z]+$/ },
+      reason: { type: "string", min: 5, max: 400 },
+    });
+    const recipient = normalizeAddress(b.recipient);
+    if (!recipient) fail(400, "bad_address", "Invalid recipient.");
+    const out = await recordSpend({ ...b, recipient, by: req.admin.wallet });
+    await log(req, "community.spend_recorded", { programId: b.programId, signature: b.signature, ok: out.ok, code: out.code });
+    if (!out.ok) fail(409, out.code, out.message);
+    res.json(out);
+  }));
+  async function recordSpend({ programId, recipient, amountBaseUnits, signature, reason, by }) {
+    const p = (await db.query(`SELECT * FROM community_programs WHERE id = $1`, [programId])).rows[0];
+    if (!p || p.status !== "active") return { ok: false, code: "no_program", message: "Spending needs an active, documented program." };
+    const now = new Date();
+    if (now < new Date(p.starts_at) || now > new Date(p.ends_at)) return { ok: false, code: "outside_dates", message: "Program is outside its start/end dates." };
+    const spent = BigInt((await db.query(`SELECT COALESCE(SUM(amount_base_units),0)::text AS n FROM community_fund_spends WHERE program_id = $1 AND status = 'confirmed'`, [programId])).rows[0].n);
+    const amt = BigInt(amountBaseUnits);
+    if (spent + amt > BigInt(p.budget_base_units)) return { ok: false, code: "over_budget", message: "That would exceed the program budget." };
+    const used = (await db.query(`SELECT 1 FROM community_fund_spends WHERE multisig_tx_signature = $1 UNION SELECT 1 FROM creator_reward_allocations WHERE community_transfer_signature = $1`, [signature])).rowCount;
+    if (used) return { ok: false, code: "signature_used", message: "That transaction is already recorded." };
+    const v2 = await cr.verifyMovement(signature, config.communityFund.treasuryWallet, recipient, p.asset_mint, amt);
+    if (!v2.ok) return v2;
+    await db.query(`INSERT INTO community_fund_spends (program_id, recipient_wallet, asset_mint, amount_base_units, multisig_tx_signature, verification_slot, reason, recorded_by_wallet) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [programId, recipient, p.asset_mint, amt.toString(), signature, v2.slot, reason, by]);
+    return { ok: true };
+  }
+
   return r;
 }
 

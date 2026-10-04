@@ -21,9 +21,10 @@ async function createApp(config, opts = {}) {
   require("./chain/solana").configure(config);
   require("./chain/pump").configure(config);
   require("./chain/rewards").configure(config);
+  require("./chain/creatorRewards").configure(config);
+  for (const e of config.communityFund.errors) console.warn(`[community-fund] ${e}`);
   require("./game/spins").configure(config);
   require("./game/milestones").configure(config);
-  require("./chain/rewards").setBoostSource(() => require("./game/milestones").boosts());
   const { mode } = await db.init(config, opts.db || {});
   await migrate(config);
   await engine.ensureOpenRound();
@@ -88,7 +89,7 @@ async function createApp(config, opts = {}) {
 
   app.use("/api/admin", require("./routes/admin").build(config, { notify }));
   app.use("/api", require("./routes/pump").build(config));
-  app.use("/api", require("./routes/launchpad").build(config, { notify }));
+  app.use("/api", require("./routes/launchpad").build(config, { notify, noScheduler: !!opts.noScheduler }));
   app.use("/api", require("./routes/api").build(config, { notify }));
   app.use("/api", (_req, res) => res.status(404).json({ error: { code: "not_found", message: "Not found." } }));
 
@@ -120,11 +121,14 @@ async function createApp(config, opts = {}) {
     db.query(`DELETE FROM sessions WHERE expires_at < now() - interval '7 days'`).catch(() => {});
   }, 10 * 60e3);
   sweeper.unref();
-  // Hourly community rewards (idempotent per UTC hour).
+  // Background jobs. None of them can move funds: the server holds no signing keys.
+  //  - milestones: refresh TEK CITY market cap, grant gameplay-only bonus spins
+  //  - creator rewards: detect finalized creator rewards received by OPERATOR_CREATOR_REWARD_WALLET and
+  //    write the 20/80 accounting records (idempotent). Community Fund transfers happen only via the external multisig.
   const rewardsTimer = opts.noScheduler || !config.launchpad.enabled ? null : setInterval(() => {
-    require("./chain/rewards").hourly(new Date()).then((id) => { if (id) notify(); }).catch((e) => console.error("[rewards]", String(e.message).slice(0, 160)));
     require("./game/milestones").tick().then(() => notify()).catch((e) => console.error("[milestones]", String(e.message).slice(0, 160)));
-  }, 60e3);
+    require("./chain/creatorRewards").tick().catch((e) => console.error("[creator-rewards]", String(e.message).slice(0, 160)));
+  }, 5 * 60e3);
   if (rewardsTimer) rewardsTimer.unref();
 
   async function close() {

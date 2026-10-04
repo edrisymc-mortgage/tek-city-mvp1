@@ -256,7 +256,7 @@ async function doSpinMove({ c, round, p, userId, name, spin }) {
   for (let i = 0; i < roll; i++) { pos = (pos + 1) % STOPS.length; path.push(pos); }
   const passedGo = path.includes(0);
   const stop = STOPS[pos];
-  const bonus = passedGo ? 1 : 0;
+  const bonus = (passedGo ? 1 : 0) + (stop.type === "vault" ? 1 : 0);
   if (spin.perRound) {
     await c.query(
       `UPDATE player_resources SET position = $2, last_move_round = $3, visited_round = $3,
@@ -272,12 +272,12 @@ async function doSpinMove({ c, round, p, userId, name, spin }) {
   await activity(c, "move", `${name} spun a ${roll} and landed on ${label}.${passedGo ? " Passed START: +1 free spin." : ""}`);
   const notes = [];
   if (passedGo) notes.push("Passed START: +1 free spin.");
-  if (stop.type === "vault") notes.push("You landed on the Vault. Jackpot!");
+  if (stop.type === "vault") notes.push("Community Vault: +1 bonus spin.");
   else if (stop.type === "station") notes.push("You're on START. Spin again.");
   else if (coin) notes.push(`You're on ${coin.name} ($${coin.symbol}). Buy in to grow it, or take the space over.`);
   else notes.push(`Space ${pos} is empty. Launch your coin here.`);
   const left = spin.perRound ? (p.bonus_left || 0) - (useBonus ? 1 : 0) + bonus : spin.earned + bonus - p.spins_used - 1;
-  return { roll, from, to: pos, path, passedGo, stop: { id: pos, name: label, type: stop.type }, gained: {}, notes, spinsLeft: left, jackpot: stop.type === "vault", message: notes.join(" ") };
+  return { roll, from, to: pos, path, passedGo, stop: { id: pos, name: label, type: stop.type }, gained: {}, notes, spinsLeft: left, message: notes.join(" ") };
 }
 
 async function addVault(c, n) {
