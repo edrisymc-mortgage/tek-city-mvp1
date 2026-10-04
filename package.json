@@ -1,16 +1,21 @@
 {
   "name": "tek-city-mvp1",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
+  "description": "TEK CITY - live multiplayer cooperative city board game (demo, virtual credits only)",
+  "main": "server.js",
   "scripts": {
-    "start": "vite --host 0.0.0.0",
-    "build": "vite build"
+    "start": "node server.js",
+    "test": "node test/smoke.js"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "latest",
-    "vite": "latest",
-    "react": "latest",
-    "react-dom": "latest"
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "socket.io-client": "^4.8.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
 }

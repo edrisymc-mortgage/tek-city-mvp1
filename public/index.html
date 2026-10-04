@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TEK CITY — Live Board</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <section class="board-wrap">
+      <div id="board" class="board" aria-label="TEK CITY board">
+        <div class="center" id="center">
+          <div class="brand">
+            <span class="eyebrow">Live cooperative city board</span>
+            <h1>TEK CITY</h1>
+          </div>
+
+          <div class="clock-row">
+            <div class="clock-card">
+              <span class="label">City time</span>
+              <strong id="clock">00:00</strong>
+              <span class="sub" id="roundLabel">Round 1 / 96 · Day 1</span>
+            </div>
+            <div class="clock-card">
+              <span class="label">Next round in</span>
+              <strong id="countdown">15:00</strong>
+              <div class="bar"><div id="roundBar"></div></div>
+            </div>
+            <div class="clock-card vault-card">
+              <span class="label">Community Vault</span>
+              <strong id="vault">0</strong>
+              <span class="sub">shared by the city</span>
+            </div>
+          </div>
+
+          <div class="turn-zone">
+            <div class="dice" id="dice"><div class="die" id="d1">–</div><div class="die" id="d2">–</div></div>
+            <div class="turn-copy">
+              <div id="turnTitle" class="turn-title">Join to play</div>
+              <div id="turnText" class="turn-text">Every player gets one roll per 15-minute round.</div>
+            </div>
+            <button id="rollBtn" class="btn primary" disabled>Roll dice</button>
+          </div>
+
+          <div id="actionPanel" class="action-panel hidden"></div>
+          <div id="cardFlash" class="card-flash hidden"></div>
+        </div>
+        <div id="tokenLayer" class="token-layer"></div>
+      </div>
+    </section>
+
+    <aside class="side">
+      <div class="panel" id="joinPanel">
+        <div class="panel-head"><span>Enter the city</span><span class="live"><i></i>LIVE</span></div>
+        <form id="joinForm" class="join-form">
+          <input id="nameInput" maxlength="16" placeholder="Your name" autocomplete="off" />
+          <button class="btn primary" type="submit">Join</button>
+        </form>
+        <p class="hint">Open this page in a second tab or on your phone to test multiplayer.</p>
+        <p id="joinError" class="error"></p>
+      </div>
+
+      <div class="panel" id="mePanel" hidden>
+        <div class="panel-head"><span>Your city account</span><span class="live"><i></i>LIVE</span></div>
+        <div class="me">
+          <div class="me-token" id="meToken">◆</div>
+          <div><div id="meName" class="me-name">—</div><div id="mePos" class="muted">—</div></div>
+          <div class="me-credits"><span class="label">Credits</span><strong id="meCredits">0</strong></div>
+        </div>
+        <div class="me-stats"><div><span class="label">Net worth</span><strong id="meWorth">0</strong></div><div><span class="label">Districts held</span><strong id="meHeld">0</strong></div></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><span>Players</span><span class="muted" id="playerCount">0 / 8</span></div>
+        <ul id="players" class="players"></ul>
+      </div>
+
+      <div class="panel" id="inspect">
+        <div class="panel-head"><span>Space intel</span><span class="muted">tap any space</span></div>
+        <div id="inspectBody" class="inspect-body muted">Select a board space to see its details.</div>
+      </div>
+
+      <div class="panel feed-panel">
+        <div class="panel-head"><span>City wire</span><span class="muted">live feed</span></div>
+        <ul id="feed" class="feed"></ul>
+      </div>
+
+      <div class="panel controls">
+        <div class="panel-head"><span>Test controls</span></div>
+        <div class="control-row">
+          <button id="skipBtn" class="btn ghost">Skip to next round</button>
+          <button id="leaveBtn" class="btn ghost">Leave game</button>
+          <button id="resetBtn" class="btn danger">Reset board</button>
+        </div>
+        <p class="hint">Virtual credits only. No wallets, tokens, or real money.</p>
+      </div>
+    </aside>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
