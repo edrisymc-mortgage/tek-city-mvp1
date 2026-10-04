@@ -101,7 +101,9 @@ function load(env = process.env) {
       tokensPerSpin: int(env.TOKENS_PER_SPIN, 500_000),
       // "holder": with OFFICIAL_TOKEN_MINT set, 1 free spin per round only while the wallet holds >= TOKENS_PER_SPIN.
       // "bought": 1 spin per TOKENS_PER_SPIN bought (on-chain buys signed by the player's wallet).
-      mode: env.SPIN_MODE === "bought" ? "bought" : "holder",
+      mode: env.SPIN_MODE === "holder" ? "holder" : "bought",
+      // first spin free for every wallet (bought mode)
+      starterSpins: Math.max(0, int(env.STARTER_SPINS, 1)),
     },
     officialTokenMint: env.OFFICIAL_TOKEN_MINT || "",
     official: {

@@ -242,9 +242,9 @@ export function renderRewards(el, info) {
   const per = Number(info.tokensPerSpin || 500000).toLocaleString();
   add(el,
     h("ul", { class: "pool-rules" },
-      h("li", {}, h("span", {}, "Every round"), h("b", {}, "1 free spin")),
+      h("li", {}, h("span", {}, "First spin"), h("b", {}, "Free")),
+      h("li", {}, h("span", {}, `Every ${per} TEK CITY bought`), h("b", {}, info.spinToken ? "+1 spin" : "When token is live")),
       h("li", {}, h("span", {}, "Pass START or land on the Vault"), h("b", {}, "+1 spin")),
-      h("li", {}, h("span", {}, "Holding needed"), h("b", {}, info.spinToken ? `${per} TEK CITY` : "None until token is live")),
       h("li", {}, h("span", {}, "TEK CITY fee on launches"), h("b", {}, "0%"))),
     h("p", { class: "small mb0" }, "TEK CITY tokens provide game utility only. They do not provide equity, dividends, revenue share, profit rights, ownership of Community Fund assets, or guaranteed financial returns."));
 }

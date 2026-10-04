@@ -82,7 +82,7 @@ PAGES.index = () => layout({
   <section class="wrap section">
     <div class="sec-head"><span class="kicker">How it works</span><h2>Three moves.</h2></div>
     <div class="steps3">
-      <article><span class="n">01</span><h3>Spin</h3><p>Connect a Solana wallet to get a free spin every round. Passing START earns another. The server rolls the die, so nobody can fake a roll.</p></article>
+      <article><span class="n">01</span><h3>Spin</h3><p>Connect a Solana wallet and your first spin is free. After that, every 500,000 TEK CITY you buy earns 1 more. Passing START earns another. The server rolls the die.</p></article>
       <article><span class="n">02</span><h3>Launch or grow</h3><p>Empty space: launch your coin on Pump.fun right from the board. Taken space: buy into that coin, or take the space with a bigger first buy.</p></article>
       <article><span class="n">03</span><h3>Keep what you launch</h3><p>You pay your own launch from your own wallet and keep your coin's creator rewards. TEK CITY takes no cut of your launch, your buys or your rewards.</p></article>
     </div>
@@ -92,7 +92,8 @@ PAGES.index = () => layout({
     <div class="sec-head"><span class="kicker">The rules</span><h2>Plain numbers, enforced by the server.</h2><p class="muted">No hidden mechanics. The server sets every roll and position. Every launch and buy links to its transaction on Solana.</p></div>
     <table class="rules">
       <tbody>
-        <tr><th>Free spin</th><td>1 per round with a connected wallet (holding 500,000 TEK CITY once the token is live)</td></tr>
+        <tr><th>First spin</th><td>Free for every connected wallet</td></tr>
+        <tr><th>More spins</th><td>+1 for every 500,000 TEK CITY you buy</td></tr>
         <tr><th>Passing START or landing on the Vault</th><td>+1 free spin</td></tr>
         <tr><th>Launch cost</th><td>Paid from your wallet to Pump.fun. TEK CITY fee: 0%</td></tr>
         <tr><th>Your coin's creator rewards</th><td>100% yours</td></tr>
@@ -136,7 +137,9 @@ PAGES["how-it-works"] = () => layout({
   <p>Connect Phantom, Solflare, Backpack or another Solana wallet to play. Without a wallet you can watch the board. Connecting signs a text message only; it isn't a transaction.</p>
   <h2>Spins</h2>
   <ul>
-    <li><b>Every round:</b> 1 free spin per connected wallet. Once the TEK CITY token is live, the wallet must hold at least 500,000 TEK CITY, checked on the server.</li>
+    <li><b>First spin:</b> free for every connected wallet.</li>
+    <li><b>Buy TEK CITY:</b> every 500,000 TEK CITY you buy earns 1 more spin. Only real buys count: on-chain purchases your own wallet signed and paid for. Tokens sent to you from another wallet don't. Checked on the server.</li>
+    <li><b>Before the TEK CITY token is live:</b> 1 free spin per round for every connected wallet.</li>
     <li><b>Pass START or land on the Vault:</b> +1 free spin.</li>
     <li><b>Milestones:</b> bonus spins for every player when TEK CITY reaches a market cap. See <a href="/milestones">Milestones</a>.</li>
   </ul>

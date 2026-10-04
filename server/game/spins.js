@@ -1,5 +1,6 @@
 "use strict";
-// Free spins come from BUYING TEK CITY: one spin for every TOKENS_PER_SPIN tokens bought.
+// Free spins: every wallet's first spin is free (STARTER_SPINS, default 1). After that, one spin for every
+// TOKENS_PER_SPIN tokens bought, plus bonus spins (passing START, the Vault, milestones).
 // A buy is an on-chain transaction signed (fee-paid) by one of the player's wallets in which that
 // wallet gained TEK CITY and paid for it (spent SOL beyond fees, or gave up another token).
 // Plain transfers in from another wallet don't count, so tokens can't be passed around to farm spins.
@@ -79,16 +80,17 @@ async function status(userId, { wait = false, force = false } = {}) {
   const per = CFG.spins.tokensPerSpin;
   const wallets = await walletsFor(userId);
   const p = (await db.query(`SELECT spins_used, bonus_total FROM player_resources WHERE user_id = $1`, [userId])).rows[0] || { spins_used: 0, bonus_total: 0 };
-  if (!wallets.length) return { enabled: true, wallet: null, bought: 0, bonus: Number(p.bonus_total) || 0, earned: 0, used: p.spins_used, left: 0, tokensPerSpin: per, mint: CFG.spins.mint, next: per };
+  const starter = CFG.spins.starterSpins;
+  if (!wallets.length) return { enabled: true, wallet: null, bought: 0, starter, bonus: Number(p.bonus_total) || 0, earned: 0, used: p.spins_used, left: 0, tokensPerSpin: per, mint: CFG.spins.mint, next: per };
   const job = refresh(userId, wallets, force);
   if (wait) await Promise.race([job, new Promise((r) => setTimeout(r, 12000))]);
   const bought = Number((await db.query(`SELECT COALESCE(SUM(tokens),0) AS t FROM tek_buys WHERE user_id = $1`, [userId])).rows[0].t);
   let balance = null;
   try { balance = await sol.tokenBalance(wallets[0], CFG.spins.mint); } catch { /* optional display only */ }
   const bonus = Number(p.bonus_total) || 0;
-  const earned = Math.floor(bought / per) + bonus;
+  const earned = starter + Math.floor(bought / per) + bonus;
   return {
-    enabled: true, wallet: wallets[0], wallets, balance, bought, bonus, earned, used: p.spins_used,
+    enabled: true, wallet: wallets[0], wallets, balance, bought, starter, bonus, earned, used: p.spins_used,
     left: Math.max(0, earned - p.spins_used), tokensPerSpin: per, mint: CFG.spins.mint, next: per - (bought % per),
   };
 }
@@ -96,7 +98,7 @@ async function status(userId, { wait = false, force = false } = {}) {
 async function requireSpin(userId) {
   if (!enabled()) return null;
   const s = await status(userId, { wait: true });
-  if (!s.wallet) fail(403, "wallet_required", `Link your wallet or pump.fun profile to spin. Every ${s.tokensPerSpin.toLocaleString()} TEK CITY you buy = 1 free spin.`);
+  if (!s.wallet) fail(403, "wallet_required", `Connect a Solana wallet to spin. Your first spin is free, then every ${s.tokensPerSpin.toLocaleString()} TEK CITY you buy = 1 more.`);
   if (s.left < 1) fail(409, "no_spins", `No spins left. Every ${s.tokensPerSpin.toLocaleString()} TEK CITY you buy = 1 free spin. Buy ${Math.ceil(s.next).toLocaleString()} more for your next one.`);
   return s;
 }

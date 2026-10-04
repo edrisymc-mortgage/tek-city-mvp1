@@ -374,7 +374,7 @@ function openProfile() {
 const TUT_OLD = [];
 const TUT = [
   { ic: "layout-grid", t: "Every space is a coin", b: "The board has 24 spaces. They start empty. When someone launches a coin on a space, its name and image take that space." },
-  { ic: "dice-5", t: "Spins", b: "Every round, a connected wallet gets 1 free spin. Once the TEK CITY token is live, the wallet needs to hold 500,000 TEK CITY. Passing START or landing on the Vault earns another. The server rolls the die." },
+  { ic: "dice-5", t: "Spins", b: "Your first spin is free. Every 500,000 TEK CITY you buy earns 1 more. Passing START or landing on the Vault earns another. The server rolls the die." },
   { ic: "rocket", t: "Launch, grow, take over", b: "Land on an empty space to launch your coin on Pump.fun. Land on a coin to buy in, or take the space with a first buy at least as big as its largest buy-in." },
   { ic: "wallet", t: "You pay, you keep", b: "Launches and buys are paid from your own wallet to Pump.fun. TEK CITY takes no cut of your launch, your buys or your coin's creator rewards." },
   { ic: "shield-check", t: "Your keys stay yours", b: "Connect Phantom, Solflare, Backpack or any Solana wallet. You review and approve every launch and buy in that wallet. TEK CITY never asks for your seed phrase or private key." },

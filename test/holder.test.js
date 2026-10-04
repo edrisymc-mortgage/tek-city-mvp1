@@ -1,5 +1,5 @@
 "use strict";
-// Holder gating with OFFICIAL_TOKEN_MINT set (SPIN_MODE=holder, the default).
+// Holder gating with OFFICIAL_TOKEN_MINT set (SPIN_MODE=holder).
 const { test, before, after } = require("node:test");
 const assert = require("node:assert");
 const { boot, wallet, walletLogin } = require("./helpers");
@@ -7,7 +7,7 @@ const sol = require("../server/chain/solana");
 
 const MINT = "So11111111111111111111111111111111111111112";
 let T; const orig = sol.tokenBalance; let bal = 0, calls = 0;
-before(async () => { T = await boot({ FEATURE_LAUNCHPAD: "true", OFFICIAL_TOKEN_MINT: MINT }); sol.tokenBalance = async () => { calls += 1; return bal; }; });
+before(async () => { T = await boot({ FEATURE_LAUNCHPAD: "true", OFFICIAL_TOKEN_MINT: MINT, SPIN_MODE: "holder" }); sol.tokenBalance = async () => { calls += 1; return bal; }; });
 after(async () => { sol.tokenBalance = orig; await T.close(); });
 
 test("guests can't spin once the token is live", async () => {
