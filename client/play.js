@@ -4,6 +4,7 @@ import { renderIcons } from "./lib/icons.js";
 import { api, ApiError } from "./lib/api.js";
 import { h, icon, $, $$, clear, avatar, fmtTime } from "./lib/dom.js";
 const add = (el, ...nodes) => el.append(...nodes.flat().filter((n) => n !== null && n !== undefined && n !== false));
+import { Board3D, webglAvailable, loadFonts } from "./board3d.js";
 import { listWallets, onWalletsChanged, signInWith, disconnect, isMobile, phantomBrowseLink } from "./lib/wallet.js";
 
 const S = { city: null, me: { signedIn: false }, config: null, lb: "today", drawer: null, busy: false, wallet: null, lastRound: null };
@@ -109,9 +110,9 @@ function firstOpenDistrict() { const d = S.city.districts.find((x) => x.next); r
 const MOBILE = window.matchMedia("(max-width: 900px)");
 MOBILE.addEventListener("change", () => render());
 function renderEvent() {
-  const other = MOBILE.matches ? $("#event") : $("#event-m");
+  const other = MOBILE.matches || S.b3 ? $("#event") : $("#event-m");
   if (other) clear(other);
-  const el = clear(MOBILE.matches ? $("#event-m") : $("#event"));
+  const el = clear(MOBILE.matches || S.b3 ? $("#event-m") : $("#event"));
   const e = S.city.event;
   if (!e) return;
   if (e.kind === "crisis") {
@@ -148,7 +149,27 @@ function gridPos(i) {
 }
 const CORNERS = new Set([0, 6, 12, 18]);
 
+const WANT_3D = !/[?&]view=2d/.test(location.search) && webglAvailable();
+function renderBoard3D() {
+  const board = $("#board"), c = S.city;
+  if (!S.b3) {
+    clear(board); board.className = "board3d";
+    const stage = h("div", { class: "stage", id: "stage" });
+    add(board, stage, h("div", { class: "hud3d", id: "hud3d" }), h("div", { class: "hint3d" }, MOBILE.matches ? "Tap a space to open it" : "Drag to rotate · scroll to zoom · click a space"));
+    try { S.b3 = new Board3D(stage, { onSelect: (id) => openDrawer(id) }); }
+    catch { S.b3 = null; S.no3d = true; board.className = "board"; return renderBoard(); }
+  }
+  S.b3.update(c, S.me);
+  const hud = clear($("#hud3d"));
+  add(hud,
+    h("button", { class: "btn btn-primary roll", id: "roll-btn", disabled: !S.me.signedIn || !!S.me.can.move || S.busy, onclick: () => act("move") }, icon("dice-5"), "Roll"),
+    h("small", { class: "roll-why" }, !S.me.signedIn ? "Join the city to roll" : S.me.can.move || "Costs 2 Energy · once per round"));
+  const legend = clear($("#legend"));
+  for (const n of Object.values(c.neighborhoods)) add(legend, h("span", { style: { "--hc": n.color } }, h("i"), `${n.name} · ${n.levels} lv`));
+}
+
 function renderBoard() {
+  if (WANT_3D && !S.no3d) return renderBoard3D();
   const board = clear($("#board"));
   const c = S.city;
   const byPos = new Map();
@@ -370,6 +391,8 @@ async function act(type, body = {}) {
   }
 }
 async function animatePath(path = [], roll) {
+  S.lastRoll = roll;
+  if (S.b3) { await S.b3.move(path, roll); return; }
   const die = $("#die");
   if (die) {
     die.classList.add("rolling");
@@ -516,7 +539,7 @@ $$(".tabs button").forEach((b) => b.addEventListener("click", () => { S.lb = b.d
 (async function init() {
   renderIcons();
   try {
-    const [sess, config] = await Promise.all([api.session(), api.get("/api/config")]);
+    const [sess, config] = await Promise.all([api.session(), api.get("/api/config"), WANT_3D ? loadFonts() : null]);
     S.me = sess.me; S.config = config;
     await refreshCity();
     render();

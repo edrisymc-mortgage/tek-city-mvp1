@@ -35,6 +35,7 @@
     "@wallet-standard/base": "^1.1.0",
     "esbuild": "^0.28.2",
     "lucide": "^1.52.0",
-    "socket.io-client": "^4.8.4"
+    "socket.io-client": "^4.8.4",
+    "three": "^0.170.0"
   }
 }
