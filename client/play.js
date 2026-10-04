@@ -180,7 +180,7 @@ function renderBoard3D() {
   S.b3.update(c, S.me);
   const hud = clear($("#hud3d"));
   add(hud,
-    h("button", { class: "btn btn-primary roll", id: "roll-btn", disabled: !S.me.signedIn || !!S.me.can.move || S.busy, onclick: () => act("move") }, icon("dice-5"), LP() && LP().spins ? "Spin" : "Roll"),
+    h("button", { class: "btn btn-primary roll", id: "roll-btn", disabled: !S.me.signedIn || !!S.me.can.move || S.busy, onclick: () => act("move") }, icon("dice-5"), LP() && LP().enabled ? "Spin" : "Roll"),
     h("small", { class: "roll-why" }, !S.me.signedIn ? "Connect Phantom to play" : S.me.can.move || (LP() && LP().spins ? `${(S.me.spins && S.me.spins.left) || 0} free spins left` : "Costs 2 Energy · once per round")));
   const legend = clear($("#legend"));
   for (const n of Object.values(c.neighborhoods)) add(legend, h("span", { style: { "--hc": n.color } }, h("i"), `${n.name} · ${n.levels} lv`));
