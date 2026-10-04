@@ -321,3 +321,4 @@ body.play { background: var(--g950); }
   .board .center .event { padding: 8px; } .board .center .event h2 { font-size: .9rem; } .board .center .event p { display: none; }
   .board .center .options { grid-template-columns: 1fr; gap: 4px; } .board .center .opt { padding: 5px 7px; } .board .center .opt small { display: none; }
 }
+.space.corner.prop { background: var(--gold-soft); }
