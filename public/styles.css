@@ -257,3 +257,8 @@ button, input, select { font: inherit; color: inherit; }
   .turn-text { display: none; }
   .btn { padding: 8px 10px; }
 }
+/* keep text clear of sector strips */
+.space.district.side-bottom { padding-top: calc(22% + 2px); }
+.space.district.side-top { padding-bottom: calc(22% + 2px); }
+.space.district.side-left { padding-right: calc(22% + 3px); }
+.space.district.side-right { padding-left: calc(22% + 3px); }
