@@ -294,6 +294,7 @@ PAGES.play = () => layout({
   </aside>
   <section class="col-center">
     <div class="board-wrap"><div class="board" id="board"></div><div class="board-legend" id="legend"></div></div>
+    <div id="event-m" class="event-m"></div>
     <div class="goal" id="goal"></div>
     <div class="day-banner" id="day-banner"></div>
   </section>

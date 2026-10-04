@@ -106,8 +106,12 @@ function renderPlayer() {
 
 function firstOpenDistrict() { const d = S.city.districts.find((x) => x.next); return d ? d.id : 1; }
 
+const MOBILE = window.matchMedia("(max-width: 900px)");
+MOBILE.addEventListener("change", () => render());
 function renderEvent() {
-  const el = clear($("#event"));
+  const other = MOBILE.matches ? $("#event") : $("#event-m");
+  if (other) clear(other);
+  const el = clear(MOBILE.matches ? $("#event-m") : $("#event"));
   const e = S.city.event;
   if (!e) return;
   if (e.kind === "crisis") {
