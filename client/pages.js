@@ -7,7 +7,6 @@ const NAV = [
   ["/how-it-works", "How it works"],
   ["/milestones", "Milestones"],
   ["/wallet-safety", "Security"],
-  ["/official-links", "Official links"],
 ];
 
 function layout({ path, title, description, body, scripts = ["site"], styles = ["base"], bodyClass = "", header = true }) {
@@ -44,7 +43,7 @@ const FOOTER = `<footer class="site-footer"><div class="wrap">
       <p class="muted mt12">A board-game launchpad for Pump.fun coins on Solana. Non-custodial: every launch and buy is signed in your own wallet.</p>
     </div>
     <div><h4>Product</h4><ul><li><a href="/play">Open the board</a></li><li><a href="/how-it-works">How it works</a></li><li><a href="/milestones">Milestones</a></li></ul></div>
-    <div><h4>Trust</h4><ul><li><a href="/wallet-safety">Security</a></li><li><a href="/official-links">Official links</a></li><li><a href="/report">Report a scam</a></li></ul></div>
+    <div><h4>Trust</h4><ul><li><a href="/wallet-safety">Security</a></li><li><a href="/report">Report a scam</a></li></ul></div>
     <div><h4>Company</h4><ul><li><a href="/contact">Contact</a></li><li><a href="/terms">Terms</a></li><li><a href="/privacy">Privacy</a></li></ul></div>
   </div>
   <p class="fine">TEK CITY is independent and not affiliated with Pump.fun or Phantom. TEK CITY will never ask for your seed phrase or private key.</p>
@@ -182,14 +181,14 @@ PAGES["wallet-safety"] = () => layout({
       <li>${ic("check")}<span>Connecting does not give TEK CITY access to your funds.</span></li>
       <li>${ic("check")}<span>Signing in asks you to sign a plain text message that starts with "wants you to sign in" and includes "Sign in to TEK CITY". Signing in is not a transaction and costs nothing.</span></li>
       <li>${ic("check")}<span>You approve every launch and buy yourself, in your own wallet. TEK CITY builds the transaction; your wallet shows exactly what it does before you sign.</span></li>
-      <li>${ic("check")}<span>Only trust the official domain and the links on our <a href="/official-links">Official links</a> page.</span></li>
+      <li>${ic("check")}<span>Only trust this domain and links posted on the official TEK CITY X account.</span></li>
     </ul>
   </div>
   </div>
   <div class="prose mt32">
   <h2>Before you sign anything</h2>
   <ul>
-    <li>Check the address bar shows the official domain listed on <a href="/official-links">Official links</a>.</li>
+    <li>Check the address bar shows this domain before you connect.</li>
     <li>Read the message. A TEK CITY sign-in message shows our domain, your address, a one-time code, and an expiration time, and states that it does not authorize any transaction or transfer.</li>
     <li>Launch and buy transactions go to Pump.fun's program. If your wallet shows a transfer to an address you don't recognise, reject it and <a href="/report">report it</a>.</li>
     <li>Sign-in requests expire after 5 minutes and can only be used once.</li>
@@ -198,29 +197,6 @@ PAGES["wallet-safety"] = () => layout({
   <h2>pump.fun</h2>
   <p>Coins are launched and traded on Pump.fun. TEK CITY never trades on your behalf. Linking a pump.fun profile by bio code is read-only: it lets us see that profile's public TEK CITY balance and the coins it created.</p>
   </div></main>`,
-});
-
-PAGES["official-links"] = () => layout({
-  path: "/official-links", title: "Official links · TEK CITY", description: "The only official TEK CITY domain, social accounts, and contract information.",
-  body: `<main class="wrap"><section class="page-hero prose"><span class="kicker">Verify</span><h1>Official links</h1>
-  <p class="muted">Bookmark this page. If a link isn't listed here, it isn't us.</p></section>
-  <div class="callout red prose"><b>Anti-phishing warning:</b> scammers copy game sites and social accounts. TEK CITY staff will never DM you first, never ask for a seed phrase or private key, and never ask you to "validate" or "sync" a wallet.</div>
-  <div class="card">
-    <table class="simple"><tbody>
-      <tr><th>Official domain</th><td><div class="copy-row"><code id="ol-domain">Loading…</code><button class="btn btn-ghost btn-sm" data-copy="ol-domain">${ic("copy")}Copy</button></div></td></tr>
-      <tr><th>X (Twitter)</th><td id="ol-x">Not announced</td></tr>
-      <tr><th>Discord</th><td id="ol-discord">Not announced</td></tr>
-      <tr><th>Telegram</th><td id="ol-telegram">Not announced</td></tr>
-      <tr><th>Token mint</th><td><div class="copy-row"><code id="ol-mint">Not announced</code><button class="btn btn-ghost btn-sm" data-copy="ol-mint" id="ol-mint-copy" hidden>${ic("copy")}Copy</button></div><small class="muted">The official TEK CITY mint is the one shown here. Any other token using the name is not ours.</small></td></tr>
-      <tr><th>Contract / audit status</th><td id="ol-audit">Loading…</td></tr>
-      <tr><th>Network</th><td id="ol-network">Loading…</td></tr>
-    </tbody></table>
-  </div></main>`,
-});
-
-const legal = (path, title, kicker, html) => layout({
-  path, title: `${title} · TEK CITY`, description: `${title} for TEK CITY (beta).`,
-  body: `<main class="wrap"><section class="page-hero prose"><span class="kicker">${kicker}</span><h1>${title}</h1><p class="muted">Beta draft. Last updated October 2026.</p></section><div class="prose">${html}</div></main>`,
 });
 
 PAGES.terms = () => legal("/terms", "Terms of Use", "Legal", `
@@ -248,7 +224,7 @@ PAGES.risk = () => legal("/risk", "Things to know", "Before you start", `
 <li><b>Transactions are final.</b> Launches and buys settle on Solana and can't be reversed.</li>
 <li><b>Prices move.</b> Pump.fun coin prices change constantly. You can sell coins you hold on Pump.fun at any time.</li>
 <li><b>Beta software.</b> TEK CITY is in beta and hasn't had an independent security audit yet.</li>
-<li><b>Only use official links.</b> Check <a href="/official-links">Official links</a> and never share your seed phrase or private key.</li>
+<li><b>Only use official links.</b> Use links from the official TEK CITY X account and never share your seed phrase or private key.</li>
 </ul>`);
 
 const formPage = (path, title, kicker, kind, intro) => layout({
@@ -270,7 +246,7 @@ PAGES.report = () => formPage("/report", "Report a scam", "Safety", "scam", "Rep
 
 PAGES["404"] = () => layout({
   path: "/404", title: "Not found · TEK CITY", description: "Page not found.",
-  body: `<main class="wrap"><section class="page-hero prose"><span class="kicker">404</span><h1>This page isn't on the board.</h1><p class="muted">If someone sent you here claiming to be TEK CITY, check our <a href="/official-links">Official links</a>.</p><p><a class="btn btn-primary" href="/play">Back to the board</a></p></section></main>`,
+  body: `<main class="wrap"><section class="page-hero prose"><span class="kicker">404</span><h1>This page isn't on the board.</h1><p class="muted">Check the link on the official TEK CITY X account.</p><p><a class="btn btn-primary" href="/play">Back to the board</a></p></section></main>`,
 });
 
 PAGES.play = () => layout({
