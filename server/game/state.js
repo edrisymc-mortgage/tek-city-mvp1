@@ -5,6 +5,7 @@ const db = require("../db/pool");
 const { STOPS, RULES, NEIGHBORHOODS, hoodLevels } = require("./board");
 const { MOODS, severityFor } = require("./events");
 const { shortAddress } = require("../auth/address");
+const spins = require("./spins");
 
 let CFG = null;
 let cache = { at: 0, version: -1, data: null };
@@ -13,7 +14,7 @@ function configure(config) { CFG = config; }
 async function cityState() {
   const cs = (await db.query(`SELECT * FROM city_state WHERE id = 1`)).rows[0];
   if (cache.data && cache.version === Number(cs.version) && Date.now() - cache.at < 3000) return cache.data;
-  const [roundR, dsR, vaultR, actR, lbR, allR, playersR, upR] = await Promise.all([
+  const [roundR, dsR, vaultR, actR, lbR, allR, playersR, upR, coinR] = await Promise.all([
     db.query(`SELECT * FROM game_rounds WHERE status = 'open' ORDER BY id DESC LIMIT 1`),
     db.query(`SELECT id, slug, name, neighborhood, level, xp FROM districts ORDER BY id`),
     db.query(`SELECT progress, milestone, lifetime FROM community_vault WHERE id = 1`),
@@ -25,6 +26,11 @@ async function cityState() {
     db.query(`SELECT u.display_name AS name, u.avatar_seed AS seed, u.kind, pr.position FROM player_resources pr JOIN users u ON u.id = pr.user_id
                WHERE u.last_seen_at > now() - interval '2 hours' AND NOT u.is_banned ORDER BY u.last_seen_at DESC LIMIT 60`),
     db.query(`SELECT d.name, du.to_level, du.created_at FROM district_upgrades du JOIN districts d ON d.id = du.district_id ORDER BY du.id DESC LIMIT 5`),
+    db.query(`SELECT sc.stop_id, sc.mint, sc.name, sc.symbol, sc.image_bytes IS NOT NULL AS has_image, sc.launcher_wallet, u.display_name AS launcher, sc.split_done,
+                     sc.grown_lamports, sc.grow_count, sc.top_buy_lamports, sc.launch_lamports, sc.created_at,
+                     (SELECT u2.display_name FROM coin_txs t JOIN users u2 ON u2.id = t.user_id WHERE t.stop_id = sc.stop_id AND t.mint = sc.mint
+                        AND t.created_at > now() - interval '15 minutes' GROUP BY u2.display_name ORDER BY sum(t.lamports) DESC LIMIT 1) AS holder
+              FROM space_coins sc LEFT JOIN users u ON u.id = sc.launcher_user_id ORDER BY sc.stop_id`),
   ]);
   const round = roundR.rows[0] || null;
   let event = null;
@@ -63,6 +69,13 @@ async function cityState() {
     goal: { levels: totalLevels, levelsNeeded: CFG.game.dayGoalLevels, milestones: vault.milestone, milestonesNeeded: CFG.game.dayGoalVaultMilestones },
     leaderboard: { today: lbR.rows, allTime: allR.rows },
     players: playersR.rows,
+    coins: coinR.rows.map((c) => ({
+      stop: c.stop_id, mint: c.mint, name: c.name, symbol: c.symbol, image: c.has_image ? `/api/coin-img/${c.stop_id}?m=${c.mint.slice(0, 8)}` : null,
+      launcher: c.launcher, launcherWallet: shortAddress(c.launcher_wallet), ready: c.split_done || !(CFG.launchpad.communityWallet || CFG.rewards.walletSecret),
+      grownLamports: Number(c.grown_lamports), grows: c.grow_count, takeoverLamports: Math.max(Number(c.top_buy_lamports), Number(c.launch_lamports)), holder: c.holder || null,
+      pumpUrl: `https://pump.fun/coin/${c.mint}`,
+    })),
+    launchpad: { enabled: !!CFG.launchpad.enabled, spins: !!CFG.spins.mint, minBuyLamports: CFG.launchpad.minBuyLamports, maxBuyLamports: CFG.launchpad.maxBuyLamports, tokensPerSpin: CFG.spins.tokensPerSpin },
     activity: actR.rows,
     upgrades: upR.rows,
     rules: { moveCost: RULES.moveCost, contributeCost: RULES.contributeCost, minContribution: RULES.minContribution, maxContribution: RULES.maxContribution, contributionsPerRound: RULES.contributionsPerRound, maxEnergy: RULES.maxEnergy },
@@ -106,10 +119,13 @@ async function me(session) {
   const contribCount = String(p.contrib_round) === rid ? p.contrib_count : 0;
   const closed = !round || new Date(round.ends_at) <= new Date();
   const why = (cond, reason) => (cond ? null : reason);
+  const sp = await spins.status(uid).catch(() => ({ enabled: false }));
   const general = paused ? "The city is paused for maintenance." : closed ? "This round is closing. The next one opens in a moment." : null;
   const can = {
     checkin: general || why(String(p.last_checkin_round) !== rid, "Already checked in this round."),
-    move: general || why(String(p.last_move_round) !== rid, "Already moved this round.") || why(p.energy >= RULES.moveCost, `Needs ${RULES.moveCost} Energy.`),
+    move: sp.enabled
+      ? general || why(!!sp.wallet, "Link a wallet holding TEK CITY to spin.") || why(sp.left > 0, `No spins left. Every ${sp.tokensPerSpin.toLocaleString()} TEK CITY = 1 spin.`)
+      : general || why(String(p.last_move_round) !== rid, "Already moved this round.") || why(p.energy >= RULES.moveCost, `Needs ${RULES.moveCost} Energy.`),
     contribute: general || why(contribCount < RULES.contributionsPerRound, `All ${RULES.contributionsPerRound} contributions used this round.`) || why(p.energy >= RULES.contributeCost, "Needs 1 Energy.") || why(p.build_credits >= RULES.minContribution, `Needs at least ${RULES.minContribution} Build Credits.`),
     vote: general || why(ev && ev.kind === "brief", "No City Brief this round (crisis in progress).") || why(String(p.last_vote_round) !== rid, "Already voted this round."),
   };
@@ -125,6 +141,7 @@ async function me(session) {
     onSite: String(p.visited_round) === rid ? p.position : null,
     contributionsLeft: RULES.contributionsPerRound - contribCount,
     tutorialDone: p.tutorial_done,
+    spins: sp,
     badges: bR.rows,
     can,
     csrf: session.csrf_token,

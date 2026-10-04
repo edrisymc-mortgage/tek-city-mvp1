@@ -1,6 +1,6 @@
 // Optional Solana wallet identity via the Wallet Standard (Phantom, Solflare, Backpack, ...).
-// Only two wallet features are ever used: standard:connect (read the public address) and
-// solana:signMessage (sign a plain-text login message). No transactions, no approvals.
+// Sign-in uses standard:connect + solana:signMessage (a plain-text login message).
+// Launchpad uses solana:signTransaction: the player reviews and signs each Pump.fun transaction in their own wallet.
 import { getWallets } from "@wallet-standard/app";
 import { api } from "./api.js";
 
@@ -56,6 +56,27 @@ export async function signInWith(w, { purpose = "login", onMessage } = {}) {
   if (onMessage) onMessage(n.message);
   const signature = await sign(w, account, n.message);
   return api.post("/api/auth/verify", { address, nonce: n.nonce, signature, purpose });
+}
+
+const SIGN_TX = "solana:signTransaction";
+function unb64(s) { const bin = atob(s); const out = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out; }
+
+// Find a connected wallet whose account matches the address linked to this TEK CITY account.
+export async function walletFor(address, preferred) {
+  const ws = listWallets().filter((w) => w.kind === "standard" && w.ref.features[SIGN_TX]);
+  const order = preferred && preferred.kind === "standard" ? [preferred, ...ws.filter((w) => w.ref !== preferred.ref)] : ws;
+  if (!order.length) throw new Error("No wallet that can sign transactions was found. Open TEK CITY in Phantom or install the Phantom extension.");
+  for (const w of order) {
+    const { address: a, account } = await connect(w);
+    if (a === address) return { w, account };
+  }
+  throw new Error(`Switch your wallet to the account linked to TEK CITY (${address.slice(0, 4)}…${address.slice(-4)}) and try again.`);
+}
+
+// Ask the wallet to sign a base64 transaction built by the server. Returns the signed transaction as base64.
+export async function signTx({ w, account }, txB64) {
+  const [out] = await w.ref.features[SIGN_TX].signTransaction({ account, transaction: unb64(txB64), chain: "solana:mainnet" });
+  return b64(out.signedTransaction);
 }
 
 export async function disconnect(w) {

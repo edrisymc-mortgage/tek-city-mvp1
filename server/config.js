@@ -45,6 +45,31 @@ function load(env = process.env) {
       rpcUrl: env.SOLANA_RPC_URL || "", // server-side only, never exposed
     },
     adminWallets: list(env.ADMIN_WALLET_ALLOWLIST),
+    launchpad: {
+      enabled: bool(env.FEATURE_LAUNCHPAD, false),
+      pumpApi: (env.PUMP_API_URL || "https://fun-block.pump.fun").replace(/\/+$/, ""),
+      rpcUrl: env.SOLANA_RPC_URL || "https://rpc.solanatracker.io/public", // server-side only
+      pinataJwt: env.PINATA_JWT || "", // secret, server-side only
+      communityWallet: env.COMMUNITY_REWARDS_WALLET || "",
+      launcherBps: int(env.LAUNCHER_FEE_BPS, 8000),
+      maxBuyLamports: int(env.MAX_BUY_LAMPORTS, 800_000_000), // ~ $100 at $121/SOL
+      minBuyLamports: int(env.MIN_BUY_LAMPORTS, 10_000_000), // 0.01 SOL
+      xpPerSol: int(env.XP_PER_SOL, 1000),
+    },
+    rewards: {
+      // Dedicated hot wallet that receives the community fee share and pays holders hourly. Secret stays server-side.
+      walletSecret: env.REWARDS_WALLET_SECRET || "",
+      reserveLamports: int(env.REWARDS_RESERVE_LAMPORTS, 50_000_000),
+      maxPerHourLamports: int(env.REWARDS_MAX_PER_HOUR_LAMPORTS, 2_000_000_000),
+      minPayoutLamports: int(env.REWARDS_MIN_PAYOUT_LAMPORTS, 1_000_000),
+      topHolders: int(env.REWARDS_TOP_HOLDERS, 25),
+      jackpotBps: int(env.JACKPOT_BPS, 6000), // share of the pool won by landing on the Community Vault
+      hourlyBps: int(env.HOURLY_BPS, 2000), // share of the remaining pool paid to holders each hour
+    },
+    spins: {
+      mint: env.OFFICIAL_TOKEN_MINT || "",
+      tokensPerSpin: int(env.TOKENS_PER_SPIN, 500_000),
+    },
     officialTokenMint: env.OFFICIAL_TOKEN_MINT || "",
     official: {
       x: env.OFFICIAL_X_URL || "",

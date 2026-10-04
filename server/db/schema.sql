@@ -299,3 +299,99 @@ CREATE TABLE IF NOT EXISTS support_reports (
   ip_hash    text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- ===== Launchpad: one Pump.fun coin per board space =====
+CREATE TABLE IF NOT EXISTS space_coins (
+  stop_id          int PRIMARY KEY CHECK (stop_id BETWEEN 0 AND 23),
+  mint             text NOT NULL UNIQUE,
+  name             text NOT NULL,
+  symbol           text NOT NULL,
+  image_url        text,
+  metadata_uri     text,
+  launcher_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  launcher_wallet  text NOT NULL,
+  launch_sig       text NOT NULL,
+  split_done       boolean NOT NULL DEFAULT false,
+  split_sig        text,
+  grown_lamports   bigint NOT NULL DEFAULT 0,
+  grow_count       int NOT NULL DEFAULT 0,
+  created_at       timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS coin_intents (
+  id          text PRIMARY KEY,
+  user_id     uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  wallet      text NOT NULL,
+  kind        text NOT NULL CHECK (kind IN ('launch','grow','split')),
+  stop_id     int NOT NULL,
+  mint        text NOT NULL,
+  lamports    bigint NOT NULL DEFAULT 0,
+  meta        jsonb NOT NULL DEFAULT '{}',
+  tx_b64      text NOT NULL,
+  used        boolean NOT NULL DEFAULT false,
+  expires_at  timestamptz NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS coin_intents_user ON coin_intents(user_id, created_at);
+CREATE TABLE IF NOT EXISTS coin_txs (
+  signature   text PRIMARY KEY,
+  kind        text NOT NULL CHECK (kind IN ('launch','grow','split')),
+  user_id     uuid REFERENCES users(id) ON DELETE SET NULL,
+  wallet      text NOT NULL,
+  stop_id     int NOT NULL,
+  mint        text NOT NULL,
+  lamports    bigint NOT NULL DEFAULT 0,
+  round_id    bigint,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS coin_txs_round ON coin_txs(round_id, stop_id);
+ALTER TABLE player_resources ADD COLUMN IF NOT EXISTS spins_day date;
+ALTER TABLE player_resources ADD COLUMN IF NOT EXISTS spins_used int NOT NULL DEFAULT 0;
+ALTER TABLE space_coins ADD COLUMN IF NOT EXISTS image_bytes bytea;
+ALTER TABLE space_coins ADD COLUMN IF NOT EXISTS image_mime text;
+ALTER TABLE coin_intents ADD COLUMN IF NOT EXISTS image_bytes bytea;
+ALTER TABLE player_resources ADD COLUMN IF NOT EXISTS spins_peak numeric NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS reward_runs (
+  id                    bigserial PRIMARY KEY,
+  hour_key              text NOT NULL UNIQUE,
+  pool_lamports         bigint NOT NULL DEFAULT 0,
+  distributed_lamports  bigint NOT NULL DEFAULT 0,
+  holders               int NOT NULL DEFAULT 0,
+  mode                  text NOT NULL CHECK (mode IN ('auto','manual')),
+  status                text NOT NULL DEFAULT 'pending',
+  note                  text,
+  created_at            timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS reward_payouts (
+  id          bigserial PRIMARY KEY,
+  run_id      bigint NOT NULL REFERENCES reward_runs(id) ON DELETE CASCADE,
+  user_id     uuid REFERENCES users(id) ON DELETE SET NULL,
+  wallet      text NOT NULL,
+  tek_balance numeric NOT NULL,
+  share_bps   int NOT NULL,
+  lamports    bigint NOT NULL,
+  signature   text,
+  status      text NOT NULL DEFAULT 'pending'
+);
+CREATE INDEX IF NOT EXISTS reward_payouts_run ON reward_payouts(run_id);
+ALTER TABLE space_coins ADD COLUMN IF NOT EXISTS top_buy_lamports bigint NOT NULL DEFAULT 0;
+ALTER TABLE space_coins ADD COLUMN IF NOT EXISTS launch_lamports bigint NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS space_coin_history (
+  id          bigserial PRIMARY KEY,
+  stop_id     int NOT NULL,
+  mint        text NOT NULL,
+  symbol      text NOT NULL,
+  launcher_wallet text NOT NULL,
+  grown_lamports bigint NOT NULL,
+  replaced_by text,
+  ended_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS jackpots (
+  id          bigserial PRIMARY KEY,
+  user_id     uuid REFERENCES users(id) ON DELETE SET NULL,
+  wallet      text NOT NULL,
+  lamports    bigint NOT NULL,
+  signature   text,
+  status      text NOT NULL DEFAULT 'pending',
+  round_id    bigint,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);

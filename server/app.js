@@ -18,6 +18,10 @@ async function createApp(config, opts = {}) {
   sessions.configure(config);
   engine.configure(config);
   state.configure(config);
+  require("./chain/solana").configure(config);
+  require("./chain/pump").configure(config);
+  require("./chain/rewards").configure(config);
+  require("./game/spins").configure(config);
   const { mode } = await db.init(config, opts.db || {});
   await migrate(config);
   await engine.ensureOpenRound();
@@ -49,6 +53,7 @@ async function createApp(config, opts = {}) {
     }
   });
 
+  app.use("/api/launchpad/launch", express.json({ limit: "3mb", strict: true }));
   app.use("/api", express.json({ limit: "10kb", strict: true }));
   app.use(sessions.loadSession);
 
@@ -80,6 +85,7 @@ async function createApp(config, opts = {}) {
   });
 
   app.use("/api/admin", require("./routes/admin").build(config, { notify }));
+  app.use("/api", require("./routes/launchpad").build(config, { notify }));
   app.use("/api", require("./routes/api").build(config, { notify }));
   app.use("/api", (_req, res) => res.status(404).json({ error: { code: "not_found", message: "Not found." } }));
 
@@ -111,10 +117,16 @@ async function createApp(config, opts = {}) {
     db.query(`DELETE FROM sessions WHERE expires_at < now() - interval '7 days'`).catch(() => {});
   }, 10 * 60e3);
   sweeper.unref();
+  // Hourly community rewards (idempotent per UTC hour).
+  const rewardsTimer = opts.noScheduler || !config.launchpad.enabled ? null : setInterval(() => {
+    require("./chain/rewards").hourly(new Date()).then((id) => { if (id) notify(); }).catch((e) => console.error("[rewards]", String(e.message).slice(0, 160)));
+  }, 60e3);
+  if (rewardsTimer) rewardsTimer.unref();
 
   async function close() {
     if (timer) clearInterval(timer);
     clearInterval(sweeper);
+    if (rewardsTimer) clearInterval(rewardsTimer);
     io.close();
     await new Promise((r) => server.close(() => r()));
     await db.close();

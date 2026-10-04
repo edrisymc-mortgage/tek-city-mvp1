@@ -5,6 +5,7 @@ import { api, ApiError } from "./lib/api.js";
 import { h, icon, $, $$, clear, avatar, fmtTime } from "./lib/dom.js";
 const add = (el, ...nodes) => el.append(...nodes.flat().filter((n) => n !== null && n !== undefined && n !== false));
 import { Board3D, webglAvailable, loadFonts } from "./board3d.js";
+import { renderCoinSection, renderSpins, renderRewards } from "./launchpad.js";
 import { listWallets, onWalletsChanged, signInWith, disconnect, isMobile, phantomBrowseLink } from "./lib/wallet.js";
 
 const S = { city: null, me: { signedIn: false }, config: null, lb: "today", drawer: null, busy: false, wallet: null, lastRound: null };
@@ -88,6 +89,7 @@ function renderPlayer() {
       h("p", { class: "muted" }, "Wallets are optional and only used for identity. TEK CITY never asks for your seed phrase or private key.")));
     return;
   }
+  if (LP() && LP().enabled) { renderSpins(el, S, LPCTX); return; }
   const m = S.me, r = m.resources, here = stop(m.position);
   add(el, 
     h("div", { class: "res" },
@@ -104,6 +106,18 @@ function renderPlayer() {
     m.badges.length ? h("div", { class: "badges" }, m.badges.map((b) => h("span", { title: b.description }, b.name))) : null,
     h("div", { class: "mt12" }, h("button", { class: "btn btn-ghost btn-sm", onclick: () => openTutorial(0) }, icon("circle-help"), "How to play")));
 }
+
+const LP = () => S.city && S.city.launchpad;
+const LPCTX = {
+  signIn: () => { closeDrawer(); openSignIn(true); },
+  linkWallet: () => { closeDrawer(); openSignIn(true); },
+  toast: (m, k, o) => toast(m, k, o),
+  refresh: () => refreshAll(),
+  act: (t, b) => act(t, b),
+  openDrawer: (id) => openDrawer(id),
+};
+async function refreshLaunchpad() { try { S.lpInfo = await api.get("/api/launchpad/info"); if (S.city) renderVault(); } catch { /* ignore */ } }
+setInterval(refreshLaunchpad, 60e3);
 
 function firstOpenDistrict() { const d = S.city.districts.find((x) => x.next); return d ? d.id : 1; }
 
@@ -162,8 +176,8 @@ function renderBoard3D() {
   S.b3.update(c, S.me);
   const hud = clear($("#hud3d"));
   add(hud,
-    h("button", { class: "btn btn-primary roll", id: "roll-btn", disabled: !S.me.signedIn || !!S.me.can.move || S.busy, onclick: () => act("move") }, icon("dice-5"), "Roll"),
-    h("small", { class: "roll-why" }, !S.me.signedIn ? "Join the city to roll" : S.me.can.move || "Costs 2 Energy · once per round"));
+    h("button", { class: "btn btn-primary roll", id: "roll-btn", disabled: !S.me.signedIn || !!S.me.can.move || S.busy, onclick: () => act("move") }, icon("dice-5"), LP() && LP().spins ? "Spin" : "Roll"),
+    h("small", { class: "roll-why" }, !S.me.signedIn ? "Connect Phantom to play" : S.me.can.move || (LP() && LP().spins ? `${(S.me.spins && S.me.spins.left) || 0} free spins left` : "Costs 2 Energy · once per round")));
   const legend = clear($("#legend"));
   for (const n of Object.values(c.neighborhoods)) add(legend, h("span", { style: { "--hc": n.color } }, h("i"), `${n.name} · ${n.levels} lv`));
 }
@@ -243,6 +257,13 @@ function renderGoal() {
 }
 
 function renderVault() {
+  if (LP() && LP().enabled) {
+    const h3 = $("#vault").closest(".panel").querySelector("h3");
+    if (h3 && h3.firstChild) h3.firstChild.textContent = "Community Rewards ";
+    $("#vault-ms").textContent = "";
+    renderRewards($("#vault"), S.lpInfo);
+    return;
+  }
   const v = S.city.vault;
   const within = v.progress - v.milestone * v.milestoneSize;
   const frac = Math.max(0, Math.min(1, within / v.milestoneSize));
@@ -292,6 +313,14 @@ function renderMobile() {
   }
   const m = S.me, here = stop(m.position);
   const b = (ic, label, reason, fn, sub) => h("button", { disabled: !!reason || S.busy, onclick: fn }, icon(ic), label, h("small", {}, reason || sub));
+  if (LP() && LP().enabled) {
+    add(el,
+      b("dice-5", "Spin", m.can.move, () => act("move"), `${(m.spins && m.spins.left) || 0} left`),
+      b("rocket", "This space", here && here.type !== "station" ? null : "Spin first", () => openDrawer(here.id), "Launch / grow"),
+      b("wallet", m.user.wallet ? "Wallet" : "Link", null, () => (m.user.wallet ? openProfile() : openSignIn(true)), m.user.wallet ? m.user.wallet.short : "Phantom"),
+      b("vault", "Rewards", null, () => $("#vault").scrollIntoView({ behavior: "smooth", block: "center" }), "Pool"));
+    return;
+  }
   add(el, 
     b("circle-check", "Check in", m.can.checkin, () => act("checkin"), "+Credits"),
     b("train-front", "Ride", m.can.move, () => act("move"), "2 Energy"),
@@ -327,6 +356,15 @@ function renderDrawer() {
     h("button", { class: "close", onclick: closeDrawer, "aria-label": "Close" }, icon("x")));
   const body = h("div", { class: "body" });
   add(dr, header, body);
+  if (LP() && LP().enabled) {
+    if (d) add(body, h("div", { class: "kv" },
+      h("div", {}, h("div", { class: "k" }, "Level"), h("div", { class: "v" }, `${d.level} / 5`)),
+      h("div", {}, h("div", { class: "k" }, "Growth"), h("div", { class: "v" }, d.next ? `${fmt(d.xp)} / ${fmt(d.next)}` : "Complete"))),
+      h("div", { class: "xpbar" }, bar(d.next ? pct(d.xp, d.next) : "100%")));
+    renderCoinSection(body, S, s, LPCTX);
+    renderIcons(dr);
+    return;
+  }
   if (!d) {
     add(body, h("p", {}, s.text || ""), h("p", { class: "small ink2" }, "Special stops trigger when you land on them after riding the Transit Line. The server decides the roll."));
     renderIcons(dr);
@@ -377,6 +415,8 @@ async function act(type, body = {}) {
     if (type === "move") {
       await animatePath(r.path, r.roll);
       toast(r.message, "ok", { dice: r.roll, ms: 6000 });
+      if (r.jackpotWin && r.jackpotWin.lamports > 0) toast(`Jackpot: ${(r.jackpotWin.lamports / 1e9).toFixed(3)} SOL from the community pool is on its way to your wallet.`, "gold", { ms: 10000 });
+      if (LP() && LP().enabled && r.stop && r.stop.type !== "station") setTimeout(() => openDrawer(r.stop.id), 600);
     } else if (type === "contribute") {
       toast(r.message, "gold");
       if (r.firstBadge) toast("Badge earned: First Brick", "gold");
@@ -488,12 +528,13 @@ function openProfile() {
 }
 
 // ------------------------------------------------------------------ tutorial
+const TUT_OLD = [];
 const TUT = [
-  { ic: "landmark", t: "Welcome to TEK CITY", b: "Everyone on the server shares one city. Your goal today: help reach 36 district levels and 3 Community Vault milestones before midnight UTC, and keep Stability above zero." },
-  { ic: "clock", t: "Every 15 minutes, the board evolves", b: "A round lasts exactly 15 minutes. At the tick the server settles everything: votes, crises, district upgrades, the Vault, and the leaderboard. Then Energy refills and a new round opens." },
-  { ic: "train-front", t: "Check in and ride", b: "Check in once per round for Build Credits. Ride the Transit Line for 2 Energy: the server rolls 1 to 6. Landing on a district puts you on site for 1.5x build XP." },
-  { ic: "hammer", t: "Build together", b: "Tap any district to contribute Build Credits (up to 3 times per round). When it levels up, everyone who helped earns Influence and a badge. 20% of each contribution fills the Community Vault." },
-  { ic: "gavel", t: "Briefs, crises, and citizens", b: "Vote on City Briefs to steer Makers, Merchants, and Residents. Crises target one district: hit the XP target or the city loses Stability. Nobody can take your resources." },
+  { ic: "landmark", t: "Welcome to TEK CITY", b: "A board game launchpad for Pump.fun. Every space on the board can become a coin. Spin, land on a space, and launch or grow the coin that's there." },
+  { ic: "dice-5", t: "Free spins from TEK CITY", b: "Every 500,000 TEK CITY you hold gives you 1 free spin. Buy more and you get more spins. Link Phantom so the game can see your balance." },
+  { ic: "rocket", t: "Launch or grow", b: "Empty space: launch your own coin on Pump.fun and the space becomes your coin. Space with a coin: grow it by buying in, or take the space over by launching with a first buy at least as big as its biggest buy-in." },
+  { ic: "vault", t: "Community rewards", b: "20% of creator fees from every coin launched here fill the community pool. Land on the Community Vault to win the biggest share. Every hour, part of the pool is split across the top TEK CITY holders." },
+  { ic: "wallet", t: "Your wallet, your keys", b: "You approve every launch and buy in your own Phantom wallet. TEK CITY never asks for your seed phrase or private key." },
 ];
 let tutStep = 0;
 function openTutorial(i = 0) {
@@ -541,6 +582,7 @@ $$(".tabs button").forEach((b) => b.addEventListener("click", () => { S.lb = b.d
   try {
     const [sess, config] = await Promise.all([api.session(), api.get("/api/config"), WANT_3D ? loadFonts() : null]);
     S.me = sess.me; S.config = config;
+    refreshLaunchpad();
     await refreshCity();
     render();
     if (!S.me.signedIn) openSignIn(location.hash === "#wallet");

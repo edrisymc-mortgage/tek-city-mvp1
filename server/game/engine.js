@@ -150,7 +150,7 @@ async function performAction(userId, type, payload, idemKey, ctx = {}) {
     const user = (await c.query(`SELECT display_name FROM users WHERE id = $1`, [userId])).rows[0];
     const ds = (await c.query(`SELECT * FROM districts ORDER BY id`)).rows;
     const hoods = hoodLevels(ds);
-    const env = { c, round, p, userId, actionId, today, cs, hoods, ds, name: user.display_name, now };
+    const env = { c, round, p, userId, actionId, today, cs, hoods, ds, name: user.display_name, now, spin: ctx.spin || null };
 
     let result;
     if (type === "checkin") result = await doCheckin(env);
@@ -193,7 +193,8 @@ const DISPATCHES = [
   { text: "Picked up a small grant.", gain: { build_credits: 15, influence: 1 } },
 ];
 
-async function doMove({ c, round, p, userId, actionId, today, hoods, ds, name }) {
+async function doMove({ c, round, p, userId, actionId, today, hoods, ds, name, spin }) {
+  if (spin) return doSpinMove({ c, round, p, userId, actionId, today, name, spin });
   if (String(p.last_move_round) === String(round.id)) fail(409, "already_moved", "You already moved this round. Your next move unlocks at the tick.");
   if (p.energy < RULES.moveCost) fail(409, "no_energy", `Moving needs ${RULES.moveCost} Energy. Energy refills by ${RULES.energyRegenPerRound} every round, or check in for +1.`);
   const roll = rnd(6) + 1;
@@ -238,6 +239,23 @@ async function doMove({ c, round, p, userId, actionId, today, hoods, ds, name })
   await changeResources(c, userId, round.id, gained, "move", actionId, today);
   await activity(c, "move", `${name} rolled a ${roll} and rode to ${stop.name}.`);
   return { roll, from, to: pos, path, stop: { id: pos, name: stop.name, type: stop.type }, gained, notes, message: notes.join(". ") || `Rode to ${stop.name}.` };
+}
+
+// Spin mode (TEK CITY holders): each roll spends one free spin. No game credits are involved.
+async function doSpinMove({ c, round, p, userId, name, spin }) {
+  if (p.spins_used >= spin.earned) fail(409, "no_spins", "No spins left. Hold more TEK CITY for more spins.");
+  const roll = rnd(6) + 1;
+  const from = p.position, path = [];
+  let pos = from;
+  for (let i = 0; i < roll; i++) { pos = (pos + 1) % STOPS.length; path.push(pos); }
+  const stop = STOPS[pos];
+  await c.query(`UPDATE player_resources SET position = $2, spins_used = spins_used + 1, visited_round = $3 WHERE user_id = $1`, [userId, pos, round.id]);
+  await activity(c, "move", `${name} spun a ${roll} and landed on ${stop.name}.`);
+  const notes = [];
+  if (stop.type === "vault") notes.push("You landed on the Community Vault. Jackpot!");
+  else if (stop.type !== "station") notes.push(`You're on ${stop.name}. Launch a coin here or grow the one that's here.`);
+  else notes.push("Central Station. Spin again to land on a space.");
+  return { roll, from, to: pos, path, stop: { id: pos, name: stop.name, type: stop.type }, gained: {}, notes, spinsLeft: spin.earned - p.spins_used - 1, jackpot: stop.type === "vault", message: notes.join(" ") };
 }
 
 async function addVault(c, n) {

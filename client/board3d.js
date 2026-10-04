@@ -33,6 +33,28 @@ function wrapText(ctx, text, maxW) {
   return lines;
 }
 
+function coinTexture(stop, district, hood, coin, img) {
+  const S = 256, c = document.createElement("canvas"); c.width = c.height = S;
+  const x = c.getContext("2d");
+  x.fillStyle = "#14281e"; x.fillRect(0, 0, S, S);
+  x.fillStyle = hood ? hood.color : GOLD; x.fillRect(0, 0, S, 14);
+  x.strokeStyle = GOLD; x.lineWidth = 5; x.strokeRect(6, 18, S - 12, S - 24);
+  const cx = S / 2, cy = 98, r = 56;
+  x.save(); x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.closePath(); x.clip();
+  if (img && img.complete && img.naturalWidth) {
+    const k = Math.max((2 * r) / img.naturalWidth, (2 * r) / img.naturalHeight);
+    const w = img.naturalWidth * k, hh = img.naturalHeight * k; x.drawImage(img, cx - w / 2, cy - hh / 2, w, hh);
+  } else { x.fillStyle = "#2a4a3a"; x.fillRect(cx - r, cy - r, 2 * r, 2 * r); x.fillStyle = YELLOW; x.font = "800 44px Fraunces, Georgia, serif"; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText(coin.symbol.slice(0, 2), cx, cy + 2); }
+  x.restore();
+  x.strokeStyle = YELLOW; x.lineWidth = 5; x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.stroke();
+  x.textAlign = "center"; x.textBaseline = "middle";
+  x.fillStyle = YELLOW; x.font = "800 34px Fraunces, Georgia, serif"; x.fillText(`$${coin.symbol}`.slice(0, 11), cx, 184);
+  x.fillStyle = "rgba(244,236,216,.75)"; x.font = "500 18px PlexMono, monospace";
+  x.fillText(`${(coin.grownLamports / 1e9).toFixed(2)} SOL GROWN`, cx, 222);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
+
 function tileTexture(stop, district, hood) {
   const S = 256, c = document.createElement("canvas"); c.width = c.height = S;
   const x = c.getContext("2d");
@@ -116,7 +138,7 @@ function pawn(color, scale = 1, ring = false) {
 export class Board3D {
   constructor(container, { onSelect }) {
     this.container = container; this.onSelect = onSelect;
-    this.tiles = new Map(); this.buildings = new Map(); this.others = []; this.me = null; this.myColor = null; this.myPos = null;
+    this.tiles = new Map(); this.buildings = new Map(); this.coinMeshes = new Map(); this.imgs = new Map(); this.others = []; this.me = null; this.myColor = null; this.myPos = null;
     this.sig = new Map();
     const w = container.clientWidth || 600, h = container.clientHeight || 600;
     const r = this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
@@ -227,8 +249,10 @@ export class Board3D {
     for (const s of city.stops) {
       const d = city.districts.find((x) => x.id === s.id);
       const hood = s.hood ? city.neighborhoods[s.hood] : null;
-      const sig = d ? `${d.level}:${d.xp}:${d.next}` : "s";
-      if (this.sig.get(s.id) !== sig) { this.sig.set(s.id, sig); this.buildTile(s, d, hood); }
+      const coin = (city.coins || []).find((c) => c.stop === s.id) || null;
+      const img = coin && coin.image ? this.image(coin.image, s.id) : null;
+      const sig = `${d ? `${d.level}:${d.xp}:${d.next}` : "s"}|${coin ? `${coin.mint}:${coin.grownLamports}:${img && img.complete ? 1 : 0}` : "-"}`;
+      if (this.sig.get(s.id) !== sig) { this.sig.set(s.id, sig); this.buildTile(s, d, hood, coin, img); }
     }
     // crisis
     const ev = city.event;
@@ -263,6 +287,16 @@ export class Board3D {
     } else if (this.me) { this.scene.remove(this.me); this.me = null; }
   }
 
+  image(url, stopId) {
+    let img = this.imgs.get(url);
+    if (!img) {
+      img = new Image(); img.decoding = "async";
+      img.onload = () => { this.sig.delete(stopId); if (this.lastCity) this.update(this.lastCity, this.lastMe); };
+      img.src = url; this.imgs.set(url, img);
+    }
+    return img;
+  }
+
   colorFor(seed) {
     const palette = ["#e2b33c", "#c9972b", "#8fb6dd", "#9fd8b2", "#f2a99e", "#d9cba6", "#b8d0e8", "#f3d68f"];
     let n = 0; for (const ch of String(seed || "x")) n = (n * 31 + ch.charCodeAt(0)) >>> 0;
@@ -272,11 +306,19 @@ export class Board3D {
   spot(pos) { const c = worldOf(pos); return new THREE.Vector3(c.x + 0.18, TILE_H + 0.01, c.z + 0.12); }
   placeMe(pos) { if (!this.me) return; this.myPos = pos; this.me.position.copy(this.spot(pos)); }
 
-  buildTile(stop, district, hood) {
+  buildTile(stop, district, hood, coin = null, img = null) {
     const old = this.tiles.get(stop.id);
     if (old) { this.scene.remove(old); old.material[2].map.dispose(); }
-    const side = new THREE.MeshStandardMaterial({ color: district ? 0xe8dcc0 : 0x173d2d, roughness: 0.8 });
-    const top = new THREE.MeshStandardMaterial({ map: tileTexture(stop, district, hood), roughness: 0.7 });
+    const side = new THREE.MeshStandardMaterial({ color: coin ? 0x8a6a1f : district ? 0xe8dcc0 : 0x173d2d, roughness: 0.6, metalness: coin ? 0.4 : 0 });
+    const top = new THREE.MeshStandardMaterial({ map: coin ? coinTexture(stop, district, hood, coin, img) : tileTexture(stop, district, hood), roughness: 0.7 });
+    const oldCoin = this.coinMeshes.get(stop.id); if (oldCoin) { this.scene.remove(oldCoin); this.coinMeshes.delete(stop.id); }
+    if (coin) {
+      const face = new THREE.MeshStandardMaterial({ color: GOLD, metalness: 0.85, roughness: 0.25, emissive: 0x4a3208, emissiveIntensity: 0.5 });
+      const cm = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.035, 36), face);
+      cm.rotation.x = Math.PI / 2; const wp = worldOf(stop.id);
+      cm.position.set(wp.x + 0.3, TILE_H + 0.62, wp.z - 0.3); cm.castShadow = true; cm.userData.stop = stop.id;
+      this.scene.add(cm); this.coinMeshes.set(stop.id, cm);
+    }
     const size = CELL - GAP;
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(size, TILE_H, size), [side, side, top, side, side, side]);
     const p = worldOf(stop.id); mesh.position.set(p.x, 0, p.z); mesh.geometry.translate(0, TILE_H / 2, 0);
@@ -352,6 +394,7 @@ export class Board3D {
     this.anims = this.anims.filter((a) => { const k = Math.min(1, (now - a.t0) / a.ms); a.fn(k); if (k >= 1) { a.res(); return false; } return true; });
     if (this.crisis.visible) { const s = 1 + Math.sin(t * 4) * 0.08; this.crisis.scale.set(s, s, s); }
     this.vaultRing.rotation.z = t * 0.4;
+    for (const [id, cm] of this.coinMeshes) { cm.rotation.z = t * 1.6 + id; cm.position.y = TILE_H + 0.62 + Math.sin(t * 2 + id) * 0.04; }
     if (this.me && this.me.userData.ring) this.me.userData.ring.material.emissiveIntensity = 0.6 + Math.sin(t * 3) * 0.3;
     if (this.controls.enabled) this.controls.update();
     this.renderer.render(this.scene, this.camera);

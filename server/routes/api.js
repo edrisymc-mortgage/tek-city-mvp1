@@ -11,6 +11,8 @@ const { limit, check: rateCheck } = require("../security/rateLimit");
 const v = require("../security/validate");
 const { fail, ipHash, randomToken } = require("../security/util");
 const { audit, activity, flagAbuse } = require("../audit");
+const spins = require("../game/spins");
+const rewards = require("../chain/rewards");
 
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 const ipKey = (req) => `ip:${ipHash(req)}`;
@@ -196,7 +198,12 @@ function build(config, { notify }) {
     if (!SHAPES[type]) fail(404, "bad_action", "Unknown action.");
     const payload = v.obj(req.body || {}, SHAPES[type]);
     const key = v.idempotencyKey(req);
-    const result = await engine.performAction(req.session.user_id, type, payload, key, { ipHash: ipHash(req) });
+    const spin = type === "move" ? await spins.requireSpin(req.session.user_id) : null;
+    if ((spins.enabled() || config.launchpad.enabled) && (type === "checkin" || type === "contribute")) fail(410, "removed", "Game credits are gone. Launch or grow coins on the space you land on.");
+    const result = await engine.performAction(req.session.user_id, type, payload, key, { ipHash: ipHash(req), spin });
+    if (result.jackpot && !result.replayed && spin && spin.wallet) {
+      result.jackpotWin = await rewards.jackpot({ userId: req.session.user_id, wallet: spin.wallet, name: req.session.display_name, roundId: null }).catch(() => ({ lamports: 0 }));
+    }
     notify();
     res.json(result);
   }));

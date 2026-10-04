@@ -16,6 +16,7 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@solana/web3.js": "^1.99.0",
     "cookie": "^1.1.1",
     "express": "^4.22.3",
     "helmet": "^8.3.0",
