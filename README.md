@@ -1,40 +1,51 @@
 # TEK CITY (Beta)
 
-A cooperative, server-authoritative online city-building game. Node.js + Express + Socket.IO + PostgreSQL, deployed on Render.
+A 3D board game launchpad for Pump.fun coins on Solana. Node.js + Express + PostgreSQL, deployed on Render. The server is authoritative: it rolls the die, moves pawns, checks on-chain transactions and keeps every balance.
 
-> Beta software. Not audited. Game resources are off-chain points with no monetary value.
+> Beta software. Not audited. TEK CITY tokens provide game utility only. They do not provide equity, dividends, revenue share, profit rights, ownership of Community Fund assets, or guaranteed financial returns.
 
-## What it is
-- One shared city, 96 rounds per UTC day, exactly 15 minutes each. The server closes, settles, and opens rounds on the wall clock.
-- Players check in, ride the Transit Line (server-rolled d6), contribute Build Credits to 16 districts across 6 neighborhoods, vote on City Briefs, and contain escalating crises.
-- Districts level 1 to 5; contributors are credited at level-up. 20% of every contribution fills the Community Vault; milestones unlock city-wide boosts and badges.
-- Factions (Makers, Merchants, Residents) react to decisions. Daily goal: 36 district levels + 3 Vault milestones. Failure: Stability 0 (Blackout) or day ends Unfinished. Resets at 00:00 UTC; player resources, badges, and all-time Influence persist.
-- No player ever loses resources because of another player.
+## How it plays
+- 24-space loop board. START and the Vault are fixed; the other spaces each hold one Pump.fun coin.
+- Playing needs a connected Solana wallet (Phantom, Solflare, Backpack or any Wallet Standard wallet). Without one, visitors watch.
+- 1 free spin per round per wallet. With `OFFICIAL_TOKEN_MINT` set and `SPIN_MODE=holder`, the wallet must hold `TOKENS_PER_SPIN` (500,000) tokens, re-checked on the server for every spin. Passing START or landing on the Vault: +1 spin. Market-cap milestones ($100K, $1M, $8M, $32M, $100M) grant bonus spins to every player. Milestones never move SOL or tokens.
+- Empty space: launch a coin on Pump.fun. Taken space: buy into it with SOL, or take it over with a first buy at least as large as its biggest buy-in.
+
+## Money flow
+- Clients pay 100% of their own launches and buys from their own wallet. TEK CITY takes no percentage of launches, buys, balances or a client's creator rewards, and refuses to build any transaction that pays a TEK CITY wallet.
+- Every transaction is built on the server, shown in a review (amount, fees, rent, programs, payer), signed in the user's wallet, then verified on chain (confirmed/finalized) before it's recorded. Settlement is idempotent per signature.
+- Community Fund: only creator rewards that `OPERATOR_CREATOR_REWARD_WALLET` actually receives, for coins recorded in `operator_coins` and activated by an admin, count. 20% (floor, integer base units) is allocated to the fund; 80% plus the rounding remainder stays with the operator. Transfers to `COMMUNITY_TREASURY_WALLET` are sent by a human through a multisig and then verified on chain. The server holds no signer. See `docs/OPERATING_GUIDE.md`.
 
 ## Run locally
 ```bash
 npm install
 npm run build      # bundles client/ into public/ (output is committed)
 npm run dev        # http://localhost:3000, embedded Postgres if DATABASE_URL is empty
-npm test           # 26 tests, embedded Postgres
+npm test           # node:test, embedded Postgres, Solana RPC stubbed
 ```
 
 ## Environment
-See `.env.example`. Required in production: `NODE_ENV=production`, `APP_URL`, `SESSION_SECRET` (32+ chars), `DATABASE_URL`.
-Without `DATABASE_URL` the server falls back to an embedded, **non-persistent** Postgres and `/health` reports `"persistent": false`.
+See `.env.example`. Production needs `NODE_ENV=production`, `APP_URL`, `SESSION_SECRET` (32+ chars), `DATABASE_URL`, `SOLANA_NETWORK=mainnet-beta`, `SOLANA_RPC_URL`, `PINATA_JWT`, `FEATURE_LAUNCHPAD=true`.
+
+| Variable | Purpose |
+| --- | --- |
+| `OFFICIAL_TOKEN_MINT` | TEK CITY token mint, set after launch. Turns on the 500K holder check and milestones. |
+| `OPERATOR_CREATOR_REWARD_WALLET` | Public key that receives creator rewards for TEK CITY-operated coins. |
+| `COMMUNITY_TREASURY_WALLET` | Public key of the Community Fund treasury (multisig). |
+| `COMMUNITY_FUND_ALLOCATION_BPS` / `OPERATOR_REWARD_RETAINED_BPS` | 2000 / 8000. Must sum to 10000. |
+| `COMMUNITY_FUND_ENABLED` | `false` by default. Blocks program activation, grants and payouts. |
+| `COMMUNITY_FUND_POLICY_URL` | Optional link to the full written policy. |
+| `ADMIN_WALLET_ALLOWLIST`, `ADMIN_WALLET_ROLES` | Admin access and Community Fund roles. |
+
+Invalid wallet config (bad key, operator = treasury, either = token mint, bps not summing to 10000) is logged at boot and forces the fund to disabled. `REWARDS_WALLET_SECRET` is retired and ignored; delete it from Render.
 
 ## Deploy (Render)
 - Build: `npm install` · Start: `npm start` · Health check: `/health`
-- Set `DATABASE_URL` to the Internal Database URL of the Render Postgres, and `SESSION_SECRET` via Render "Generate".
-- Schema migrations run automatically on boot (`server/db/schema.sql`, idempotent).
+- Migrations in `server/db/migrations` run once each on boot (`004` resets the board to zero for the token launch).
+- Pushes don't auto-deploy; trigger a deploy after merging to `main`.
 
-## Wallet security model
-- Wallets are optional identity only, via the Wallet Standard (`standard:connect`, `solana:signMessage`). Guest mode is fully playable.
-- Sign-in: server issues a random single-use nonce (5 min) bound to address + session; the message includes "Sign in to TEK CITY", domain, address, nonce, issued/expiration time, and a statement that signing authorizes no transaction or transfer. The server verifies the ed25519 signature against the stored message and burns the nonce atomically.
-- Sessions: opaque random token in an HttpOnly, Secure (prod), SameSite=Lax cookie (`__Host-` prefix in prod); only an HMAC is stored. CSRF token + Origin check on every state change. Session rotates on login. Admin actions require a fresh signature within 10 minutes.
-- Never requested: seed phrases, private keys, transactions, approvals, transfers.
+## Security model
+- Sign-in with Solana: single-use nonce bound to address + session, signed text message only, verified ed25519 on the server.
+- HttpOnly session cookies, CSRF + Origin checks, rate limits, idempotency keys, append-only audit logs.
+- Never requested, stored or transmitted: seed phrases, private keys, signing credentials. Wallet addresses aren't hard-coded in frontend code; the public Community Fund page reads them from the server.
 
-## What is NOT included
-No token transfers, purchases, swaps, trading, custody, deposits, withdrawals, cash-out, or crypto prizes. No Pump.fun login or integration. `FEATURE_ONCHAIN_ACTIONS` and `FEATURE_MAINNET` are locked off unless set by environment. Rate limiting is in-memory (single instance); move it to Redis before scaling out.
-
-See `docs/ARCHITECTURE.md`, `docs/LAUNCH_CHECKLIST.md`, `docs/INCIDENT_RESPONSE.md`.
+See `docs/OPERATING_GUIDE.md`, `docs/TEST_REPORT.md`, `docs/ARCHITECTURE.md`, `docs/LAUNCH_CHECKLIST.md`, `docs/INCIDENT_RESPONSE.md`.

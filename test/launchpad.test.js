@@ -19,9 +19,14 @@ test("launchpad info and state expose coins without secrets", async () => {
 });
 
 test("launch requires a linked wallet and being on the space", async () => {
-  const g = T.client(); await g.guest("NoWallet");
-  let r = await g.post("/api/launchpad/grow", { stopId: 3, lamports: 50_000_000 });
+  const g = T.client(); await g.start();
+  let r = await g.post("/api/guest", { name: "NoWallet" });
   assert.equal(r.status, 403); assert.equal(r.body.error.code, "wallet_required");
+  r = await g.post("/api/launchpad/grow", { stopId: 3, lamports: 50_000_000 });
+  assert.ok([401, 403].includes(r.status));
+  r = await g.action("move");
+  assert.ok([401, 403].includes(r.status));
+  assert.equal((await g.get("/api/me")).body.signedIn, false);
   const c = T.client(); await c.start(); await walletLogin(c, wallet());
   r = await c.post("/api/launchpad/grow", { stopId: 3, lamports: 50_000_000 });
   assert.equal(r.status, 409); assert.equal(r.body.error.code, "not_on_space");

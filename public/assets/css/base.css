@@ -179,3 +179,8 @@ table.simple th { font: 500 12px var(--font-mono); text-transform: uppercase; le
 .mt8 { margin-top: 8px; } .mt12 { margin-top: 12px; } .mt16 { margin-top: 16px; } .mt32 { margin-top: 32px; } .mt64 { margin-top: 64px; } .mb0 { margin-bottom: 0; }
 .ink2 { color: var(--text2); }
 .nav a.btn-primary, .nav a.btn-primary:hover { color: var(--primary-ink); padding: 7px 12px; }
+.cf-wallet { display: grid; gap: 6px; padding: 14px 0; border-top: 1px solid var(--line, #26282c); }
+.cf-wallet .k { font-size: 13px; color: var(--muted, #8a8c90); }
+.cf-wallet code { word-break: break-all; font-size: 14px; }
+.cf-wallet .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.badge { display: inline-block; padding: 4px 10px; border: 1px solid var(--line, #26282c); border-radius: 999px; font-size: 13px; }

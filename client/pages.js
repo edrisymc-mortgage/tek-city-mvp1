@@ -55,7 +55,7 @@ const PAGES = {};
 
 PAGES.index = () => layout({
   path: "/", title: "TEK CITY · Every space is a coin",
-  description: "TEK CITY is a 3D board where every space is a Pump.fun coin. Spin, land, launch your coin or buy into someone else's. Creator fees fund a community pool paid to holders every hour.",
+  description: "TEK CITY is a 3D board where every space is a Pump.fun coin. Spin, land, launch your coin or buy into someone else's, paid from your own wallet.",
   bodyClass: "home",
   body: `<main>
   <section class="hero wrap">
@@ -75,28 +75,27 @@ PAGES.index = () => layout({
   <section class="stats wrap" aria-label="Live numbers">
     <div><span class="k">Coins on the board</span><b id="st-coins">--</b></div>
     <div><span class="k">SOL put in</span><b id="st-sol">--</b></div>
-    <div><span class="k">Community pool</span><b id="st-pool">--</b></div>
-    <div><span class="k">Next holder payout</span><b id="st-next">--</b></div>
+    <div><span class="k">Players</span><b id="st-players">--</b></div>
+    <div><span class="k">TEK CITY fee on launches</span><b>0%</b></div>
   </section>
 
   <section class="wrap section">
     <div class="sec-head"><span class="kicker">How it works</span><h2>Three moves.</h2></div>
     <div class="steps3">
-      <article><span class="n">01</span><h3>Spin</h3><p>Every 500,000 TEK CITY you buy earns a free spin. Passing START earns another. The server rolls the die, so nobody can fake a roll.</p></article>
+      <article><span class="n">01</span><h3>Spin</h3><p>Connect a Solana wallet to get a free spin every round. Passing START earns another. The server rolls the die, so nobody can fake a roll.</p></article>
       <article><span class="n">02</span><h3>Launch or grow</h3><p>Empty space: launch your coin on Pump.fun right from the board. Taken space: buy into that coin, or take the space with a bigger first buy.</p></article>
-      <article><span class="n">03</span><h3>Share the pool</h3><p>20% of creator fees from every coin on the board go to the community pool. Land on the Vault to win most of it. Every hour, part of it is split across holders.</p></article>
+      <article><span class="n">03</span><h3>Keep what you launch</h3><p>You pay your own launch from your own wallet and keep your coin's creator rewards. TEK CITY takes no cut of your launch, your buys or your rewards.</p></article>
     </div>
   </section>
 
   <section class="wrap section split">
-    <div class="sec-head"><span class="kicker">The rules</span><h2>Plain numbers, enforced by the server.</h2><p class="muted">No hidden mechanics. The server sets every roll, balance and payout. Every launch and buy links to its transaction on Solana.</p></div>
+    <div class="sec-head"><span class="kicker">The rules</span><h2>Plain numbers, enforced by the server.</h2><p class="muted">No hidden mechanics. The server sets every roll and position. Every launch and buy links to its transaction on Solana.</p></div>
     <table class="rules">
       <tbody>
-        <tr><th>Free spin</th><td>Every 500,000 TEK CITY bought</td></tr>
-        <tr><th>Passing START</th><td>+1 free spin</td></tr>
-        <tr><th>Creator fees on each coin</th><td>80% launcher · 20% community pool</td></tr>
-        <tr><th>Landing on the Vault</th><td>60% of the community pool</td></tr>
-        <tr><th>Every hour</th><td>20% of the pool, split across the top 25 holders by balance</td></tr>
+        <tr><th>Free spin</th><td>1 per round with a connected wallet (holding 500,000 TEK CITY once the token is live)</td></tr>
+        <tr><th>Passing START or landing on the Vault</th><td>+1 free spin</td></tr>
+        <tr><th>Launch cost</th><td>Paid from your wallet to Pump.fun. TEK CITY fee: 0%</td></tr>
+        <tr><th>Your coin's creator rewards</th><td>100% yours</td></tr>
         <tr><th>Taking over a space</th><td>First buy at least the space's biggest buy-in</td></tr>
         <tr><th>Per transaction</th><td>0.01 to 0.8 SOL</td></tr>
       </tbody>
@@ -104,13 +103,13 @@ PAGES.index = () => layout({
   </section>
 
   <section class="wrap section">
-    <div class="sec-head row-head"><div><span class="kicker">Milestones</span><h2>The bigger TEK CITY gets, the more it gives back.</h2></div><a class="btn btn-ghost" href="/milestones">All milestones</a></div>
+    <div class="sec-head row-head"><div><span class="kicker">Milestones</span><h2>Bonus spins as TEK CITY grows.</h2></div><a class="btn btn-ghost" href="/milestones">All milestones</a></div>
     <ol class="ladder" id="ladder"></ol>
   </section>
 
   <section class="wrap section cta-band">
     <h2>The board is live.</h2>
-    <p class="muted">Connect Phantom, Solflare or Backpack, or link your pump.fun profile.</p>
+    <p class="muted">Connect Phantom, Solflare, Backpack or another Solana wallet. Without one you can still watch.</p>
     <a class="btn btn-primary btn-lg" href="/play">Open the board</a>
   </section>
 </main>`,
@@ -120,43 +119,39 @@ PAGES.index = () => layout({
 PAGES.milestones = () => layout({
   path: "/milestones", title: "Milestones · TEK CITY", description: "TEK CITY market-cap milestones and what each one unlocks.",
   body: `<main class="wrap"><section class="page-hero prose"><span class="kicker">Milestones</span><h1>What each milestone unlocks</h1>
-  <p class="muted">When the TEK CITY coin first reaches a market cap on pump.fun, that milestone unlocks for good and its reward runs automatically from the rewards wallet. Each one links to its transactions on Solana.</p>
+  <p class="muted">When the TEK CITY coin first reaches a market cap on pump.fun, that milestone unlocks for good and every player gets bonus free spins. Milestones are gameplay only: they never send SOL or tokens.</p>
   <p class="muted small" id="ms-now"></p></section>
   <ol class="ladder full" id="ladder"></ol>
-  <div class="prose mt32"><h2>Who counts as a holder</h2><p>Any player whose linked wallet or verified pump.fun profile holds at least 500,000 TEK CITY. Link yours on the board.</p></div>
+  <div class="prose mt32"><p class="muted small">TEK CITY tokens provide game utility only. They do not provide equity, dividends, revenue share, profit rights, ownership of Community Fund assets, or guaranteed financial returns.</p></div>
   </main>`,
   scripts: ["site", "landing"],
 });
 
 PAGES["how-it-works"] = () => layout({
-  path: "/how-it-works", title: "How TEK CITY works", description: "Spins, launching and growing coins, take-overs, the community pool, and milestones.",
-  body: `<main class="wrap"><section class="page-hero prose"><span class="kicker">How it works</span><h1>The board, the coins, the pool.</h1>
-  <p class="muted">TEK CITY is a 24-space board. Every space except START can hold one Pump.fun coin. Empty spaces stay blank until someone launches a coin there; then the coin's name and image fill the space.</p></section>
+  path: "/how-it-works", title: "How TEK CITY works", description: "Spins, launching and growing coins, take-overs, and milestones.",
+  body: `<main class="wrap"><section class="page-hero prose"><span class="kicker">How it works</span><h1>The board and the coins.</h1>
+  <p class="muted">TEK CITY is a 24-space board. Every space except START and the Vault can hold one Pump.fun coin. Empty spaces stay blank until someone launches a coin there; then the coin's name and image fill the space.</p></section>
   <div class="prose">
+  <h2>Playing needs a wallet</h2>
+  <p>Connect Phantom, Solflare, Backpack or another Solana wallet to play. Without a wallet you can watch the board. Connecting signs a text message only; it isn't a transaction.</p>
   <h2>Spins</h2>
   <ul>
-    <li><b>Buy TEK CITY:</b> every 500,000 TEK CITY you buy earns 1 free spin. Only real buys count: transactions your own wallet signed and paid for. Tokens sent to you from another wallet don't.</li>
-    <li><b>Pass START:</b> every time your pawn passes or lands on START you get another free spin.</li>
-    <li><b>Before TEK CITY launches:</b> everyone gets 1 free spin per 15-minute round.</li>
+    <li><b>Every round:</b> 1 free spin per connected wallet. Once the TEK CITY token is live, the wallet must hold at least 500,000 TEK CITY, checked on the server.</li>
+    <li><b>Pass START or land on the Vault:</b> +1 free spin.</li>
+    <li><b>Milestones:</b> bonus spins for every player when TEK CITY reaches a market cap. See <a href="/milestones">Milestones</a>.</li>
   </ul>
   <p>The server rolls the die. Your browser only shows the result.</p>
   <h2>Launching a coin</h2>
-  <p>Land on an empty space, pick a name, ticker and image, and choose your first buy. TEK CITY builds the Pump.fun launch transaction, you approve it in your wallet, and the space becomes your coin. Right after, you approve the creator-fee split: 80% of your coin's creator fees go to you, 20% to the community pool.</p>
+  <p>Land on an empty space, pick a name, ticker and image, and choose your first buy. TEK CITY builds the Pump.fun launch transaction and shows you the full cost first. You approve it in your own wallet and the space becomes your coin.</p>
+  <p>Coin launches are paid directly from your connected Solana wallet through the selected launchpad. TEK CITY does not custody or take a percentage of your launch payment. Network and launchpad fees apply as displayed before transaction approval. Your coin's creator rewards go to you.</p>
   <h2>Growing and taking over</h2>
   <ul>
-    <li><b>Grow:</b> land on a coin and buy into it on Pump.fun. The amount is added to that space's total.</li>
+    <li><b>Grow:</b> land on a coin and buy into it on Pump.fun with SOL from your wallet. The amount is added to that space's total.</li>
     <li><b>Take over:</b> launch your own coin on a taken space with a first buy at least as large as the biggest single buy-in on that space. Your coin replaces it on the board. The old coin keeps trading on Pump.fun.</li>
   </ul>
-  <h2>The community pool</h2>
-  <ul>
-    <li>Filled by 20% of the creator fees from every coin launched on the board.</li>
-    <li><b>Vault:</b> land on the Vault space to win 60% of the pool, paid to your linked wallet.</li>
-    <li><b>Hourly:</b> every hour, 20% of the pool is split across the top 25 holders by TEK CITY balance.</li>
-  </ul>
-  <h2>Linking pump.fun</h2>
-  <p>If you use Phantom or another wallet on pump.fun, connect that wallet and your pump.fun profile shows up automatically. If you signed up on pump.fun with email or social login, paste your profile link and add the short code we give you to your pump.fun bio. Your TEK CITY buys from that wallet then count toward spins and holder rewards.</p>
-  <h2>Milestones</h2>
-  <p>Market-cap milestones unlock airdrops, burns, token drops, free spins and boosts. See <a href="/milestones">Milestones</a>.</p>
+  <h2>pump.fun accounts</h2>
+  <p>pump.fun is a venue, not a wallet. Use a Solana wallet you control, such as Phantom, Solflare, or Backpack. SOL and tokens are available when they are held by the wallet you connect. If you log into pump.fun with that same wallet, your pump.fun profile shows up automatically.</p>
+  <p class="muted small">TEK CITY tokens provide game utility only. They do not provide equity, dividends, revenue share, profit rights, ownership of Community Fund assets, or guaranteed financial returns.</p>
   </div></main>`,
 });
 
@@ -249,6 +244,15 @@ const formPage = (path, title, kicker, kind, intro) => layout({
 PAGES.contact = () => formPage("/contact", "Contact & support", "Help", "contact", "Questions, bugs, account deletion, or feedback. We read everything.");
 PAGES.report = () => formPage("/report", "Report a scam", "Safety", "scam", "Report phishing sites, impersonators, fake tokens, or anyone asking for wallet secrets.");
 
+PAGES["community-fund"] = () => layout({
+  path: "/community-fund", title: "Community Fund · TEK CITY", description: "How the TEK CITY Community Fund is funded, held and used.",
+  body: `<main class="wrap"><section class="page-hero prose"><span class="kicker">Community Fund</span><h1>Community Fund</h1>
+  <p class="muted">Supports announced TEK CITY game and community programs.</p>
+  <p><span class="badge" id="cf-status">Loading</span></p></section>
+  <div class="prose" id="cf-root"><p class="muted">Loading…</p></div></main>`,
+  scripts: ["site", "landing"],
+});
+
 PAGES["404"] = () => layout({
   path: "/404", title: "Not found · TEK CITY", description: "Page not found.",
   body: `<main class="wrap"><section class="page-hero prose"><span class="kicker">404</span><h1>This page isn't on the board.</h1><p class="muted">Check the link on the official TEK CITY X account.</p><p><a class="btn btn-primary" href="/play">Back to the board</a></p></section></main>`,
@@ -262,7 +266,7 @@ PAGES.play = () => layout({
   <a class="logo" href="/" aria-label="TEK CITY home">${LOGO}<b>TEK CITY</b><span class="beta">Beta</span></a>
   <div class="chips" id="chips">
     <div class="chip"><span class="lbl">TEK CITY mcap</span><span class="val" id="c-mcap">--</span></div>
-    <div class="chip"><span class="lbl">Community pool</span><span class="val" id="c-pool">--</span></div>
+    <div class="chip"><span class="lbl">Players</span><span class="val" id="c-players">--</span></div>
     <div class="chip"><span class="lbl">Next payout</span><span class="val" id="c-next">--:--</span></div>
     <div class="chip" id="countdown-box"><span class="lbl">Round ends</span><span class="val" id="countdown" aria-live="off">--:--</span></div>
   </div>
@@ -277,7 +281,7 @@ PAGES.play = () => layout({
     <div class="board-wrap"><div class="board" id="board"></div></div>
   </section>
   <aside class="col-right">
-    <section class="panel"><h3>Community pool</h3><div id="vault"></div></section>
+    <section class="panel"><h3>Spins</h3><div id="vault"></div></section>
     <section class="panel"><h3>Coins on the board <span class="r" id="coins-n"></span></h3><div id="coins"></div></section>
     <section class="panel"><h3>Activity <span class="r live" id="live-dot">live</span></h3><ul class="feed" id="feed"></ul></section>
   </aside>

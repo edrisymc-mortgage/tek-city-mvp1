@@ -64,7 +64,7 @@ export function renderCoinSection(body, S, s, ctx) {
   const wrap = h("div", { class: "coin-sec" });
   add(body, wrap);
   if (s.type === "station") { add(wrap, h("p", { class: "small ink2" }, "START. Every time you pass or land here you get a free spin.")); return; }
-  if (s.type === "vault") add(wrap, h("div", { class: "jackpot-note" }, icon("vault"), h("span", {}, h("b", {}, "Jackpot space. "), "Land here on a spin to win 60% of the community pool.")));
+  if (s.type === "vault") add(wrap, h("div", { class: "jackpot-note" }, icon("vault"), h("span", {}, h("b", {}, "Bonus spin. "), "Land here on a spin for +1 free spin.")));
 
   if (coin) {
     add(wrap, h("div", { class: "coin-card" },
@@ -77,7 +77,6 @@ export function renderCoinSection(body, S, s, ctx) {
       h("div", {}, h("div", { class: "k" }, "Buy-ins"), h("div", { class: "v" }, String(coin.grows + 1))),
       h("div", {}, h("div", { class: "k" }, "Holding the spot"), h("div", { class: "v" }, coin.holder || "Open")),
       h("div", {}, h("div", { class: "k" }, "Take-over price"), h("div", { class: "v" }, `${sol(coin.takeoverLamports)} SOL`))));
-    if (!coin.ready) add(wrap, h("div", { class: "reason" }, icon("info"), "Waiting for the launcher to confirm the 80/20 community fee split."));
   } else add(wrap, h("p", { class: "lede-sm" }, "No coin here yet. Launch one and this space becomes your coin."));
 
   if (!L.enabled) { add(wrap, h("div", { class: "reason" }, icon("info"), "The launchpad opens soon.")); return; }
@@ -115,7 +114,7 @@ export function renderCoinSection(body, S, s, ctx) {
     const preview = h("img", { class: "lp-preview", alt: "" }); preview.hidden = true;
     file.addEventListener("change", async () => { try { preview.src = await readImage(file.files[0]); preview.hidden = false; } catch (e) { say(e.message); } });
     const f = amountField(min, L.maxBuyLamports, Math.max(min, Math.min(L.maxBuyLamports, 50_000_000)));
-    const btn = h("button", { class: `btn ${coin ? "btn-ghost" : "btn-primary"}`, type: "button" }, icon("rocket"), coin ? "Take over this space" : "Launch coin on Pump.fun");
+    const btn = h("button", { class: `btn ${coin ? "btn-ghost" : "btn-primary"}`, type: "button" }, icon("rocket"), "Review Launch Cost");
     btn.onclick = () => run(btn, async () => {
       const image = await readImage(file.files[0]);
       if (name.value.trim().length < 2) throw new Error("Give your coin a name.");
@@ -124,26 +123,17 @@ export function renderCoinSection(body, S, s, ctx) {
       const prep = await api.post("/api/launchpad/launch", { stopId: s.id, name: name.value.trim(), symbol: ticker.value.trim(), description: desc.value.trim() || undefined, image, lamports: toLamports(f.input.value) });
       const r = await signAndSubmit(S, prep, say, ctx);
       say(r.message); ctx.toast(r.message, "gold", { ms: 8000 });
-      if (r.next) {
-        say("One more approval: confirm the 80/20 creator fee split (80% to you, 20% to TEK CITY community rewards).");
-        const r2 = await signAndSubmit(S, r.next, say, ctx);
-        say(r2.message); ctx.toast(r2.message, "gold");
-      }
     });
     add(wrap, h("div", { class: "lp-block" },
-      h("h4", {}, coin ? `Take over from $${coin.symbol}` : "Launch your coin here"),
+      h("h4", {}, coin ? `Take over from $${coin.symbol}` : "Launch Your Coin"),
       h("p", { class: "small ink2" }, coin
         ? `Launch a new coin on this space with a first buy of at least ${sol(min)} SOL, matching $${coin.symbol}'s biggest buy-in.`
-        : "Launching is free on Pump.fun. Your first buy sets this space's take-over price. 80% of creator fees go to you, 20% to community rewards."),
+        : "Your first buy sets this space's take-over price. Your coin's creator rewards go to you."),
+      h("p", { class: "small ink2" }, "Coin launches are paid directly from your connected Solana wallet through the selected launchpad. TEK CITY does not custody or take a percentage of your launch payment. Network and launchpad fees apply as displayed before transaction approval."),
       h("div", { class: "lp-form" }, name, ticker, desc, h("label", { class: "file-l" }, icon("image"), "Coin image", file), preview, h("div", { class: "k small ink2" }, "First buy"), f.el),
       btn));
   } else if (coin) add(wrap, h("p", { class: "small ink2" }, `Take-over needs more than the ${sol(L.maxBuyLamports)} SOL per-transaction limit. Buy $${coin.symbol} instead.`));
 
-  if (coin && !coin.ready && m.user.name === coin.launcher) {
-    const btn = h("button", { class: "btn btn-primary", type: "button" }, icon("check"), "Confirm 80/20 fee split");
-    btn.onclick = () => run(btn, async () => { const prep = await api.post("/api/launchpad/split", { stopId: s.id }); const r = await signAndSubmit(S, prep, say, ctx); say(r.message); });
-    add(wrap, btn);
-  }
   add(wrap, status);
 }
 
@@ -245,17 +235,16 @@ export function renderCoins(el, S, ctx) {
     h("span", { class: "amt" }, `${sol(c.grownLamports)} SOL`)))));
 }
 
-// Rewards panel.
+// Spins panel (was the community pool panel). Gameplay only.
 export function renderRewards(el, info) {
   clear(el);
   if (!info) { add(el, h("p", { class: "small mb0" }, "Loading…")); return; }
-  const r = info.rewards || {};
-  const mins = 59 - new Date().getMinutes();
+  const per = Number(info.tokensPerSpin || 500000).toLocaleString();
   add(el,
-    h("div", { class: "pool" }, h("span", { class: "k" }, "In the pool"), h("b", {}, `${sol(r.poolLamports || 0)} SOL`)),
     h("ul", { class: "pool-rules" },
-      h("li", {}, h("span", {}, "Land on the Vault"), h("b", {}, `${(r.jackpotBps || 0) / 100}%`)),
-      h("li", {}, h("span", {}, `Top holders, every hour · next in ${mins}m`), h("b", {}, `${(r.hourlyBps || 0) / 100}%`)),
-      h("li", {}, h("span", {}, "Source"), h("b", {}, "20% of creator fees"))),
-    (r.jackpots || []).length ? h("div", { class: "wins" }, (r.jackpots || []).slice(0, 3).map((j) => h("div", {}, `${j.display_name || "Player"} won ${sol(j.lamports)} SOL`))) : null);
+      h("li", {}, h("span", {}, "Every round"), h("b", {}, "1 free spin")),
+      h("li", {}, h("span", {}, "Pass START or land on the Vault"), h("b", {}, "+1 spin")),
+      h("li", {}, h("span", {}, "Holding needed"), h("b", {}, info.spinToken ? `${per} TEK CITY` : "None until token is live")),
+      h("li", {}, h("span", {}, "TEK CITY fee on launches"), h("b", {}, "0%"))),
+    h("p", { class: "small mb0" }, "TEK CITY tokens provide game utility only. They do not provide equity, dividends, revenue share, profit rights, ownership of Community Fund assets, or guaranteed financial returns."));
 }

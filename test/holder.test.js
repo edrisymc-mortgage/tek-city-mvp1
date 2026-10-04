@@ -11,9 +11,10 @@ before(async () => { T = await boot({ FEATURE_LAUNCHPAD: "true", OFFICIAL_TOKEN_
 after(async () => { sol.tokenBalance = orig; await T.close(); });
 
 test("guests can't spin once the token is live", async () => {
-  const g = T.client(); await g.guest("Guesty");
+  const g = T.client(); await g.start();
+  assert.equal((await g.post("/api/guest", { name: "Guesty" })).status, 403);
   const r = await g.action("move");
-  assert.equal(r.status, 403); assert.equal(r.body.error.code, "wallet_required");
+  assert.ok([401, 403].includes(r.status));
 });
 
 test("wallets under 500,000 TEK CITY get no free spin", async () => {

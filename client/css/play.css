@@ -42,7 +42,7 @@ body.play { overflow-x: hidden; background: #0a0b0d; }
 
 /* board */
 .board-wrap { position: sticky; top: 56px; height: calc(100vh - 56px); min-height: 560px; }
-@media (max-width: 900px) { .board-wrap { position: relative; top: 0; height: 74vh; min-height: 420px; } }
+@media (max-width: 900px) { .board-wrap { position: relative; top: 0; height: min(74vh, 118vw); min-height: 380px; } }
 .board3d { position: absolute; inset: 0; }
 .board3d .stage { position: absolute; inset: 0; }
 .board3d canvas { display: block; width: 100% !important; height: 100% !important; outline: none; cursor: grab; }
@@ -232,3 +232,6 @@ textarea.txt { resize: vertical; }
 .wallet-state .acts { display: flex; gap: 8px; }
 .wallet-state .acts .btn { width: auto; }
 .modal .kv { margin-top: 14px; }
+.fee-list { list-style: none; margin: 12px 0 0; padding: 0; }
+.fee-list li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); }
+.fee-list li small { text-align: right; max-width: 55%; }

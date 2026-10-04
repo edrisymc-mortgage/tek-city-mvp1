@@ -52,6 +52,7 @@ function build(config, { notify }) {
 
   // ------------------------------------------------------------ guest
   r.post("/guest", limit("guest_create", ipKey), wrap(async (req, res) => {
+    if (config.launchpad.enabled) fail(403, "wallet_required", "Connect a Solana wallet to play. Without one you can still watch the board.");
     const { name } = v.obj(req.body, { name: { type: "string", min: 2, max: 20, pattern: v.NAME } });
     if (req.session && req.session.user_id) fail(409, "already_signed_in", "You're already playing. Sign out first to start a new guest.");
     const ih = ipHash(req);
@@ -197,6 +198,7 @@ function build(config, { notify }) {
   r.post("/action/:type", sessions.requireUser, limit("game_action_ip", ipKey), limit("game_action_user", userKey), wrap(async (req, res) => {
     const type = req.params.type;
     if (!SHAPES[type]) fail(404, "bad_action", "Unknown action.");
+    if (config.launchpad.enabled && req.session.auth_method !== "wallet") fail(403, "wallet_required", "Connect a Solana wallet to play. Without one you can still watch the board.");
     const payload = v.obj(req.body || {}, SHAPES[type]);
     const key = v.idempotencyKey(req);
     let spin = type === "move" ? await spins.requireSpin(req.session.user_id) : null;

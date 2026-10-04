@@ -90,7 +90,13 @@ function build(config, { notify, noScheduler = false }) {
       milestones: await milestones.summary(),
       coins: (await db.query(`SELECT COUNT(*)::int AS n, COALESCE(SUM(grown_lamports),0)::bigint AS l FROM space_coins`)).rows[0],
       spaces: COIN_STOPS.size,
+      players: (await db.query(`SELECT COUNT(DISTINCT user_id)::int AS n FROM wallet_accounts WHERE unlinked_at IS NULL`)).rows[0].n,
     });
+  }));
+
+  // Public Community Fund page data. Wallets come from server config, never from frontend code.
+  r.get("/community-fund", limit("api_read", ipKey), wrap(async (_req, res) => {
+    res.json(await require("../chain/creatorRewards").publicSummary({ full: true }));
   }));
 
   r.get("/coin-img/:stop", limit("api_read", ipKey), wrap(async (req, res) => {

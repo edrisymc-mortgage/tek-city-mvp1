@@ -59,7 +59,7 @@ function renderTop() {
   if (i) {
     const m = i.milestones && i.milestones.mcapUsd;
     $("#c-mcap").textContent = m ? `$${Math.round(m).toLocaleString()}` : "Not live";
-    $("#c-pool").textContent = `${sol((i.rewards && i.rewards.poolLamports) || 0)} SOL`;
+    $("#c-players").textContent = String(i.players || 0);
   }
   $("#countdown-box").classList.toggle("lp-hide", !!(c.launchpad && c.launchpad.spins));
 }
@@ -74,7 +74,6 @@ function renderAccount() {
   } else {
     add(slot, 
       walletEnabled() ? h("button", { class: "btn btn-primary btn-sm", onclick: () => openSignIn(true) }, "Connect Solana Wallet") : null,
-      h("button", { class: "btn btn-ghost btn-sm", onclick: () => openSignIn() }, "Guest"),
     );
   }
 }
@@ -92,9 +91,8 @@ function renderPlayer() {
   const el = clear($("#player"));
   if (!S.me.signedIn) {
     add(el, h("div", { class: "signin" },
-      h("p", {}, "Use a Solana wallet you control, such as Phantom, Solflare, or Backpack. SOL and tokens are available when they are held by the wallet you connect."),
+      h("p", {}, "You're watching. Connect a Solana wallet to play. Use a Solana wallet you control, such as Phantom, Solflare, or Backpack. SOL and tokens are available when they are held by the wallet you connect."),
       walletEnabled() ? h("button", { class: "btn btn-primary", onclick: () => openSignIn(true) }, icon("wallet"), "Connect Solana Wallet") : null,
-      h("button", { class: "btn btn-ghost", onclick: () => openSignIn() }, "Look around as a guest"),
       h("p", { class: "small" }, "Connecting signs a message only. It is not a transaction and costs nothing.")));
     return;
   }
@@ -114,7 +112,7 @@ const LPCTX = {
 };
 
 // Transaction review shown before the wallet opens. Resolves true to continue, false to cancel.
-const ACTION_LABEL = { buy: "Buy with SOL", launch: "Launch coin on Pump.fun", takeover: "Take over space (launch on Pump.fun)", split: "Set creator fee split (80/20)" };
+const ACTION_LABEL = { buy: "Buy with SOL", launch: "Launch Your Coin", takeover: "Take over space (launch your coin)", split: "Set creator fee split (80/20)" };
 function openReview(rv) {
   return new Promise((resolve) => {
     let done = false; const finish = (v) => { if (done) return; done = true; closeModal(); resolve(v); };
@@ -134,15 +132,17 @@ function openReview(rv) {
       h("p", { class: "small mb0" }, h("b", {}, "Programs: "), rv.programs.map((p) => p.label).join(", "), "."),
       rv.mint ? h("p", { class: "small mb0" }, h("b", {}, "Token mint: "), h("span", { class: "mono" }, shortAddr(rv.mint))) : null,
       unknown.length ? h("div", { class: "reason mt12" }, icon("info"), `Includes ${unknown.length} program${unknown.length > 1 ? "s" : ""} TEK CITY doesn't label. Check your wallet's preview before approving.`) : null,
-      h("p", { class: "small mt12" }, "Solana transactions are final. Your wallet will show its own preview next. Approve only if it matches. TEK CITY records this only after Solana confirms it."),
-      h("div", { class: "row" }, h("button", { class: "btn btn-ghost", onclick: () => finish(false) }, "Cancel"), h("button", { class: "btn btn-primary", onclick: () => finish(true) }, "Continue to wallet")),
+      Array.isArray(rv.fees) && rv.fees.length ? h("ul", { class: "small fee-list" }, rv.fees.map((f) => h("li", {}, h("span", {}, f.label), f.lamports == null ? h("small", { class: "muted" }, f.note || "") : h("b", { class: "mono" }, `${f.kind === "max" ? "up to " : ""}${sol(f.lamports)} SOL`)))) : null,
+      rv.action === "launch" ? h("p", { class: "small mt12" }, rv.disclosure || "Coin launches are paid directly from your connected Solana wallet through the selected launchpad. TEK CITY does not custody or take a percentage of your launch payment. Network and launchpad fees apply as displayed before transaction approval.") : null,
+      h("p", { class: "small mt12" }, h("b", {}, "You control this transaction. "), "Approve only if the displayed details match your intended launch. Solana transactions are final. TEK CITY records this only after Solana confirms it."),
+      h("div", { class: "row" }, h("button", { class: "btn btn-ghost", onclick: () => finish(false) }, "Cancel"), h("button", { class: "btn btn-primary", onclick: () => finish(true) }, rv.action === "launch" ? "Launch with My Wallet" : "Buy with My Wallet")),
     ]);
     const obs = new MutationObserver(() => { if (!$("#modal").classList.contains("open")) { obs.disconnect(); finish(false); } });
     obs.observe($("#modal"), { attributes: true, attributeFilter: ["class"] });
   });
 }
 async function refreshLaunchpad() {
-  try { S.lpInfo = await api.get("/api/launchpad/info"); if (S.b3 && S.b3.setPool) S.b3.setPool(Number(S.lpInfo.rewards && S.lpInfo.rewards.poolLamports) || 0); if (S.city) { renderTop(); renderSide(); renderIcons(); } } catch { /* ignore */ }
+  try { S.lpInfo = await api.get("/api/launchpad/info"); if (S.city) { renderTop(); renderSide(); renderIcons(); } } catch { /* ignore */ }
 }
 setInterval(refreshLaunchpad, 60e3);
 
@@ -222,13 +222,13 @@ function renderMobile() {
   add(el,
     b("dice-5", "Spin", m.can.move, () => act("move"), sp.enabled ? `${sp.left || 0} left` : "Ready"),
     b("square", "Space", here && here.type !== "station" ? null : "Spin first", () => openDrawer(here.id), spaceName(S.city, m.position)),
-    b("wallet", "Profile", null, () => openProfile(), m.user.wallet ? m.user.wallet.short : "Guest"),
-    b("vault", "Pool", null, () => $("#vault").scrollIntoView({ behavior: "smooth", block: "center" }), S.lpInfo ? `${sol(S.lpInfo.rewards.poolLamports || 0)}` : "--"));
+    b("wallet", "Profile", null, () => openProfile(), m.user.wallet ? m.user.wallet.short : "--"),
+    b("info", "Rules", null, () => $("#vault").scrollIntoView({ behavior: "smooth", block: "center" }), "Spins"));
 }
 
 // ------------------------------------------------------------------ drawer
 function openDrawer(id) {
-  S.drawer = id;
+  S.drawer = id; S.drawerAt = performance.now();
   renderDrawer();
   $("#drawer").classList.add("open"); $("#scrim").classList.add("open");
   $("#drawer").setAttribute("aria-hidden", "false");
@@ -253,7 +253,8 @@ function renderDrawer() {
   renderCoinSection(body, S, s, LPCTX);
   renderIcons(dr);
 }
-$("#scrim").addEventListener("click", closeDrawer);
+// Ignore the click a touch tap fires right after it opens the drawer (it lands on the scrim while the sheet slides in).
+$("#scrim").addEventListener("click", () => { if (performance.now() - (S.drawerAt || 0) > 450) closeDrawer(); });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeDrawer(); closeModal(); } });
 
 // ------------------------------------------------------------------ actions
@@ -266,7 +267,6 @@ async function act(type, body = {}) {
       await animatePath(r.path, r.roll);
       toast(r.message, "ok", { dice: r.roll, ms: 6000 });
       if (r.passedGo) toast("You passed START: +1 free spin.", "gold", { ms: 6000 });
-      if (r.jackpotWin && r.jackpotWin.lamports > 0) toast(`Jackpot: ${(r.jackpotWin.lamports / 1e9).toFixed(3)} SOL from the community pool is on its way to your wallet.`, "gold", { ms: 10000 });
       if (r.stop && r.stop.type !== "station") setTimeout(() => openDrawer(r.stop.id), 600);
     } else toast(r.message);
   } catch (e) {
@@ -306,19 +306,9 @@ function safetyNote() {
 
 function openSignIn(walletFirst = false) {
   const status = h("p", { class: "small", role: "status" });
-  const name = h("input", { id: "guest-name", maxlength: 20, minlength: 2, placeholder: "Display name", autocomplete: "nickname", value: "" });
-  const startGuest = async () => {
-    const v = name.value.trim();
-    if (!/^[A-Za-z0-9][A-Za-z0-9 _.-]{1,19}$/.test(v)) { status.textContent = "Use 2 to 20 letters, numbers, spaces, dots, dashes or underscores."; return; }
-    status.textContent = "Joining…";
-    try { const r = await api.post("/api/guest", { name: v }); S.me = r.me; closeModal(); await refreshAll(); toast(`Signed in as ${v}.`); maybeTutorial(); }
-    catch (e) { status.textContent = e.message; }
-  };
-  name.addEventListener("keydown", (e) => { if (e.key === "Enter") startGuest(); });
-  const guest = h("div", {}, h("h3", {}, "Or continue as a guest"), h("p", { class: "small" }, "Guests can look around and move on the board. Launching and buying needs a wallet."),
-    name, h("div", { class: "row" }, h("button", { class: "btn btn-ghost", onclick: startGuest }, "Continue as guest")));
   const wallets = walletEnabled() ? walletSection(status, { title: "Choose a wallet" }) : h("p", { class: "small" }, "Wallet sign-in is turned off right now.");
-  openModal([h("h2", {}, "Connect Solana Wallet"), h("p", {}, "Use a Solana wallet you control, such as Phantom, Solflare, or Backpack. SOL and tokens are available when they are held by the wallet you connect."), wallets, h("hr"), guest, status]);
+  const watch = h("div", { class: "row" }, h("button", { class: "btn btn-ghost", onclick: closeModal }, "Just watch"));
+  openModal([h("h2", {}, "Connect Solana Wallet"), h("p", {}, "Playing needs a Solana wallet. Use a Solana wallet you control, such as Phantom, Solflare, or Backpack. SOL and tokens are available when they are held by the wallet you connect. No wallet? You can still watch the board."), wallets, status, watch]);
   void walletFirst;
 }
 
@@ -384,9 +374,9 @@ function openProfile() {
 const TUT_OLD = [];
 const TUT = [
   { ic: "layout-grid", t: "Every space is a coin", b: "The board has 24 spaces. They start empty. When someone launches a coin on a space, its name and image take that space." },
-  { ic: "dice-5", t: "Spins", b: "Every 500,000 TEK CITY you buy earns 1 free spin. Passing START earns another. The server rolls the die." },
+  { ic: "dice-5", t: "Spins", b: "Every round, a connected wallet gets 1 free spin. Once the TEK CITY token is live, the wallet needs to hold 500,000 TEK CITY. Passing START or landing on the Vault earns another. The server rolls the die." },
   { ic: "rocket", t: "Launch, grow, take over", b: "Land on an empty space to launch your coin on Pump.fun. Land on a coin to buy in, or take the space with a first buy at least as big as its largest buy-in." },
-  { ic: "vault", t: "Community pool", b: "20% of creator fees from every coin on the board fill the pool. Land on the Vault for 60% of it. Every hour, 20% is split across the top holders." },
+  { ic: "wallet", t: "You pay, you keep", b: "Launches and buys are paid from your own wallet to Pump.fun. TEK CITY takes no cut of your launch, your buys or your coin's creator rewards." },
   { ic: "shield-check", t: "Your keys stay yours", b: "Connect Phantom, Solflare, Backpack or any Solana wallet. You review and approve every launch and buy in that wallet. TEK CITY never asks for your seed phrase or private key." },
 ];
 let tutStep = 0;

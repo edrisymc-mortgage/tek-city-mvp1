@@ -141,112 +141,166 @@ function build(config, { notify }) {
     res.json(data);
   }));
 
-  // ------------------------------------------------------------ Community Fund (records only)
-  // None of these move money. Transfers and spending are signed through the external multisig; these routes
-  // record and verify them on chain. Spending also requires COMMUNITY_FUND_ENABLED and an active written program.
+  // ------------------------------------------------------------ Community Fund (records only, RBAC)
+  // None of these move money. Transfers and payments are signed by a human through the external multisig; these
+  // routes record and verify them on chain. Each route needs a specific role from admin_roles (ADMIN_WALLET_ROLES).
   const cr = require("../chain/creatorRewards");
   const { normalizeAddress } = require("../auth/address");
-  r.get("/community/overview", wrap(async (req, res) => {
-    const [ev, al, led, pr, sp] = await Promise.all([
-      db.query(`SELECT id, source_event_id, source_transaction_signature, asset_mint, reward_amount_base_units::text AS amount, verification_status, rejection_reason, received_at FROM creator_reward_events ORDER BY id DESC LIMIT 100`),
-      db.query(`SELECT id, creator_reward_event_id, asset_mint, community_fund_amount_base_units::text AS community, operator_retained_amount_base_units::text AS operator, status, community_transfer_signature FROM creator_reward_allocations ORDER BY id DESC LIMIT 100`),
-      db.query(`SELECT asset_mint, status, SUM(allocated_amount_base_units)::text AS n FROM community_fund_ledger GROUP BY asset_mint, status`),
-      db.query(`SELECT * FROM community_programs ORDER BY id DESC`),
-      db.query(`SELECT * FROM community_fund_spends ORDER BY id DESC LIMIT 100`),
+  const ID = { id: { type: "int", min: 1, max: 1e12 } };
+  const idOf = (req) => v.obj({ id: Number(req.params.id) }, ID).id;
+  const AMOUNT = { type: "string", min: 1, max: 30, pattern: /^[1-9][0-9]*$/ };
+  const SIG = { type: "string", min: 64, max: 100, pattern: /^[1-9A-HJ-NP-Za-km-z]+$/ };
+  const ASSET = { type: "string", min: 3, max: 44, pattern: /^(SOL|[1-9A-HJ-NP-Za-km-z]{32,44})$/ };
+  const policyVersion = async () => ((await cr.policies())["community_fund_model"] || {}).version || "unversioned";
+  async function rolesOf(wallet) { return (await db.query(`SELECT role FROM admin_roles WHERE address = $1`, [wallet])).rows.map((x) => x.role); }
+  const role = (...need) => wrap(async (req, _res, next) => {
+    const have = await rolesOf(req.admin.wallet);
+    if (!need.some((x) => have.includes(x))) {
+      await log(req, "community.denied", { path: req.path, need });
+      fail(403, "missing_role", `This action needs the ${need.join(" or ")} role.`);
+    }
+    req.admin.roles = have;
+    next();
+  });
+  const anyRole = role("coin_approver", "policy_admin", "program_admin", "grant_approver", "ledger_reconciler");
+  const done = async (req, res, action, out, details) => {
+    await log(req, action, { ...details, ok: out.ok !== false, code: out.code });
+    if (out.ok === false) fail(409, out.code || "rejected", out.message || out.code || "Rejected.");
+    res.json(out);
+  };
+
+  r.get("/community/overview", anyRole, wrap(async (req, res) => {
+    const q = (sql) => db.query(sql).then((x) => x.rows);
+    const [coins, events, allocations, ledger, programs, grants] = await Promise.all([
+      q(`SELECT * FROM operator_coins ORDER BY id DESC`),
+      q(`SELECT id, operator_coin_id, source_type, source_event_id, source_transaction_signature, asset_mint, reward_amount_base_units::text AS amount, received_slot, received_at, verification_status, rejection_reason FROM creator_reward_events ORDER BY id DESC LIMIT 200`),
+      q(`SELECT id, creator_reward_event_id, asset_mint, community_fund_amount_base_units::text AS community, operator_retained_amount_base_units::text AS operator, allocation_status, community_transfer_signature, transfer_verified_at FROM creator_reward_allocations ORDER BY id DESC LIMIT 200`),
+      q(`SELECT asset_mint, status, SUM(allocated_amount_base_units)::text AS n FROM community_fund_ledger GROUP BY asset_mint, status`),
+      q(`SELECT *, budget_base_units::text AS budget_base_units FROM community_reward_programs ORDER BY id DESC`),
+      q(`SELECT *, award_amount_base_units::text AS award_amount_base_units FROM community_reward_grants ORDER BY id DESC LIMIT 200`),
     ]);
     await log(req, "community.viewed", {});
-    res.json({ config: { enabled: config.communityFund.enabled, operatorWallet: config.communityFund.operatorWallet || null, treasuryWallet: config.communityFund.treasuryWallet || null, bps: config.communityFund.communityBps, errors: config.communityFund.errors }, events: ev.rows, allocations: al.rows, ledger: led.rows, programs: pr.rows, spends: sp.rows });
+    const f = config.communityFund;
+    res.json({ roles: req.admin.roles, config: { enabled: f.enabled, paused: f.paused, operatorWallet: f.operatorWallet || null, treasuryWallet: f.treasuryWallet || null, bps: { community: f.communityBps, operator: f.operatorBps }, errors: f.errors, network: config.solana.network }, coins, events, allocations, ledger, programs, grants });
   }));
-  r.post("/community/rescan", wrap(async (req, res) => {
-    const b = v.obj(req.body, { signature: { type: "string", min: 64, max: 100, pattern: /^[1-9A-HJ-NP-Za-km-z]+$/ } });
-    const out = await cr.processSignature(b.signature);
-    await log(req, "community.rescan", { signature: b.signature, out });
-    res.json(out);
+
+  // Operator coins: only coins TEK CITY itself operates. Players' coins never go here.
+  r.post("/community/coins", role("coin_approver"), wrap(async (req, res) => {
+    const b = v.obj(req.body, {
+      mint: { type: "string", min: 32, max: 44, pattern: /^[1-9A-HJ-NP-Za-km-z]+$/ },
+      tokenName: { type: "string", min: 1, max: 60 },
+      tokenSymbol: { type: "string", min: 1, max: 12 },
+      launchVenue: { type: "enum", values: ["pump.fun", "pumpswap"] },
+    });
+    const mint = normalizeAddress(b.mint);
+    if (!mint) fail(400, "bad_address", "Invalid mint address.");
+    const f = config.communityFund;
+    if (!f.operatorWallet) fail(409, "not_configured", "OPERATOR_CREATOR_REWARD_WALLET is not configured.");
+    if ([f.operatorWallet, f.treasuryWallet].includes(mint)) fail(400, "bad_address", "A wallet address is not a coin mint.");
+    const row = (await db.query(`INSERT INTO operator_coins (mint_address_or_launch_id, token_name, token_symbol, launch_venue, network, operator_reward_wallet, policy_version, configured_by_admin_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (mint_address_or_launch_id) DO NOTHING RETURNING id`, [mint, b.tokenName, b.tokenSymbol, b.launchVenue, config.solana.network, f.operatorWallet, await policyVersion(), req.admin.wallet])).rows[0];
+    if (!row) fail(409, "duplicate", "That coin is already recorded.");
+    await log(req, "community.coin_created", { id: row.id, mint, status: "draft" });
+    res.json({ id: row.id, status: "draft" });
   }));
-  r.post("/community/allocations/:id/approve", wrap(async (req, res) => {
-    const id = v.obj({ id: Number(req.params.id) }, { id: { type: "int", min: 1, max: 1e12 } }).id;
-    const out = await cr.approveAllocation(id);
-    await log(req, "community.allocation_approved", { id, ok: out.ok });
-    res.json(out);
+  const COIN_FLOW = { draft: ["approved", "retired"], approved: ["active", "retired"], active: ["paused", "retired"], paused: ["active", "retired"], retired: [] };
+  r.post("/community/coins/:id/status", role("coin_approver"), wrap(async (req, res) => {
+    const id = idOf(req);
+    const b = v.obj(req.body, { status: { type: "enum", values: ["approved", "active", "paused", "retired"] } });
+    const c = (await db.query(`SELECT * FROM operator_coins WHERE id = $1`, [id])).rows[0];
+    if (!c) fail(404, "not_found", "Coin not found.");
+    if (!COIN_FLOW[c.eligibility_status].includes(b.status)) fail(409, "bad_transition", `Can't go from ${c.eligibility_status} to ${b.status}.`);
+    if (c.operator_reward_wallet !== config.communityFund.operatorWallet && b.status === "active") fail(409, "wallet_mismatch", "This coin was recorded for a different operator wallet.");
+    await db.query(`UPDATE operator_coins SET eligibility_status = $2, configured_by_admin_id = $3, configured_at = now() WHERE id = $1`, [id, b.status, req.admin.wallet]);
+    await log(req, "community.coin_status", { id, from: c.eligibility_status, to: b.status });
+    res.json({ ok: true });
   }));
-  r.post("/community/allocations/:id/verify-transfer", wrap(async (req, res) => {
-    const id = v.obj({ id: Number(req.params.id) }, { id: { type: "int", min: 1, max: 1e12 } }).id;
-    const b = v.obj(req.body, { signature: { type: "string", min: 64, max: 100, pattern: /^[1-9A-HJ-NP-Za-km-z]+$/ } });
-    const out = await cr.verifyTransfer(id, b.signature);
-    await log(req, "community.transfer_verified", { id, signature: b.signature, ok: out.ok, code: out.code });
-    if (!out.ok) fail(409, out.code, out.message);
-    res.json(out);
+
+  // Ledger reconciliation.
+  r.post("/community/rescan", role("ledger_reconciler"), wrap(async (req, res) => {
+    const b = v.obj(req.body || {}, { signature: { ...SIG, optional: true } });
+    const out = b.signature ? await cr.processSignature(b.signature, { actor: req.admin.wallet }) : (await cr.tick(), { ok: true });
+    await done(req, res, "community.rescan", out, { signature: b.signature });
   }));
-  r.post("/community/events/:id/reverse", wrap(async (req, res) => {
-    const id = v.obj({ id: Number(req.params.id) }, { id: { type: "int", min: 1, max: 1e12 } }).id;
-    const b = v.obj(req.body, { reason: { type: "string", min: 5, max: 200 } });
-    const out = await cr.reverseEvent(id, b.reason);
-    await log(req, "community.event_reversed", { id, reason: b.reason, ok: out.ok });
-    if (!out.ok) fail(409, out.code, "Can't reverse this event.");
-    res.json(out);
+  r.post("/community/events/:id/match", role("ledger_reconciler"), wrap(async (req, res) => {
+    const id = idOf(req); const b = v.obj(req.body, { operatorCoinId: ID.id });
+    await done(req, res, "community.event_match", await cr.matchEvent(id, b.operatorCoinId, req.admin.wallet), { id, coin: b.operatorCoinId });
   }));
-  r.post("/community/programs", wrap(async (req, res) => {
+  r.post("/community/events/:id/reverse", role("ledger_reconciler"), wrap(async (req, res) => {
+    const id = idOf(req); const b = v.obj(req.body, { reason: { type: "string", min: 5, max: 200 } });
+    await done(req, res, "community.event_reverse", await cr.reverseEvent(id, b.reason, req.admin.wallet), { id, reason: b.reason });
+  }));
+  r.post("/community/allocations/:id/propose-transfer", role("ledger_reconciler"), wrap(async (req, res) => {
+    const id = idOf(req); v.obj(req.body || {}, {});
+    await done(req, res, "community.transfer_propose", await cr.proposeTransfer(id, req.admin.wallet), { id });
+  }));
+  r.post("/community/allocations/:id/verify-transfer", role("ledger_reconciler"), wrap(async (req, res) => {
+    const id = idOf(req); const b = v.obj(req.body, { signature: SIG });
+    await done(req, res, "community.transfer_verify", await cr.verifyTransfer(id, b.signature, req.admin.wallet), { id, signature: b.signature });
+  }));
+
+  // Policy text (versioned, append-only).
+  r.post("/community/policies", role("policy_admin"), wrap(async (req, res) => {
+    const b = v.obj(req.body, {
+      key: { type: "enum", values: ["client_launch_disclosure", "community_fund_disclosure", "community_fund_model", "token_utility_disclosure"] },
+      version: { type: "string", min: 4, max: 40, pattern: /^[0-9A-Za-z._-]+$/ },
+      body: { type: "string", min: 20, max: 4000 },
+    });
+    const row = await db.query(`INSERT INTO policy_versions (key, version, body) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING key`, [b.key, b.version, b.body]);
+    if (!row.rowCount) fail(409, "duplicate", "That version already exists. Policy versions can't be edited; add a new one.");
+    await log(req, "community.policy_added", { key: b.key, version: b.version });
+    res.json({ ok: true });
+  }));
+
+  // Programs.
+  r.post("/community/programs", role("program_admin"), wrap(async (req, res) => {
     const b = v.obj(req.body, {
       name: { type: "string", min: 3, max: 120 },
-      category: { type: "enum", values: ["education", "contest", "creator_support", "event", "bug_bounty", "board_participation"] },
+      purpose: { type: "enum", values: ["onboarding", "education", "gameplay_contest", "creator_support", "event", "bug_bounty", "board_incentive", "other"] },
       description: { type: "string", min: 20, max: 4000 },
       eligibilityRules: { type: "string", min: 20, max: 4000 },
-      abusePrevention: { type: "string", min: 20, max: 4000 },
-      paymentMethod: { type: "string", min: 5, max: 400 },
-      assetMint: { type: "string", min: 3, max: 44 },
-      budgetBaseUnits: { type: "string", min: 1, max: 30, pattern: /^[1-9][0-9]*$/ },
+      fraudControls: { type: "string", min: 20, max: 4000 },
+      assetMint: ASSET,
+      budgetBaseUnits: AMOUNT,
       startsAt: { type: "string", min: 10, max: 40 },
       endsAt: { type: "string", min: 10, max: 40 },
-      policyUrl: { type: "string", min: 12, max: 500, pattern: /^https:\/\/[^\s<>"]+$/ },
     });
     const st = new Date(b.startsAt), en = new Date(b.endsAt);
     if (!(st.getTime() > 0) || !(en > st)) fail(400, "bad_dates", "endsAt must be after startsAt.");
-    const row = (await db.query(`INSERT INTO community_programs (name, category, description, eligibility_rules, abuse_prevention, payment_method, asset_mint, budget_base_units, starts_at, ends_at, policy_url, created_by_wallet)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`, [b.name, b.category, b.description, b.eligibilityRules, b.abusePrevention, b.paymentMethod, b.assetMint, b.budgetBaseUnits, st, en, b.policyUrl, req.admin.wallet])).rows[0];
+    const row = (await db.query(`INSERT INTO community_reward_programs (name, description, purpose, eligibility_rules, fraud_controls, asset_mint, budget_base_units, starts_at, ends_at, policy_version, created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`, [b.name, b.description, b.purpose, b.eligibilityRules, b.fraudControls, b.assetMint, b.budgetBaseUnits, st, en, await policyVersion(), req.admin.wallet])).rows[0];
     await log(req, "community.program_created", { id: row.id, name: b.name });
     res.json({ id: row.id, status: "draft" });
   }));
-  r.post("/community/programs/:id/status", wrap(async (req, res) => {
-    const id = v.obj({ id: Number(req.params.id) }, { id: { type: "int", min: 1, max: 1e12 } }).id;
-    const b = v.obj(req.body, { status: { type: "enum", values: ["active", "closed"] } });
-    const r2 = await db.query(`UPDATE community_programs SET status = $2, updated_at = now() WHERE id = $1 RETURNING id`, [id, b.status]);
-    if (!r2.rowCount) fail(404, "not_found", "Program not found.");
-    await log(req, "community.program_status", { id, status: b.status });
-    res.json({ ok: true });
+  r.post("/community/programs/:id/status", role("program_admin"), wrap(async (req, res) => {
+    const id = idOf(req);
+    const b = v.obj(req.body, { status: { type: "enum", values: ["proposed", "approved", "active", "paused", "completed", "cancelled"] } });
+    await done(req, res, "community.program_status", await cr.setProgramStatus(id, b.status, req.admin.wallet), { id, status: b.status });
   }));
-  // Record a spend the multisig already signed. Verified on chain: treasury -> recipient, finalized, within budget and dates.
-  r.post("/community/spends", wrap(async (req, res) => {
-    if (!config.communityFund.enabled) fail(403, "fund_disabled", "The Community Fund is disabled (COMMUNITY_FUND_ENABLED=false).");
+
+  // Grants.
+  r.post("/community/grants", role("program_admin", "grant_approver"), wrap(async (req, res) => {
     const b = v.obj(req.body, {
-      programId: { type: "int", min: 1, max: 1e12 },
+      programId: ID.id,
       recipient: { type: "string", min: 32, max: 44 },
-      amountBaseUnits: { type: "string", min: 1, max: 30, pattern: /^[1-9][0-9]*$/ },
-      signature: { type: "string", min: 64, max: 100, pattern: /^[1-9A-HJ-NP-Za-km-z]+$/ },
-      reason: { type: "string", min: 5, max: 400 },
+      amountBaseUnits: AMOUNT,
+      proof: { type: "string", min: 5, max: 400 },
     });
     const recipient = normalizeAddress(b.recipient);
     if (!recipient) fail(400, "bad_address", "Invalid recipient.");
-    const out = await recordSpend({ ...b, recipient, by: req.admin.wallet });
-    await log(req, "community.spend_recorded", { programId: b.programId, signature: b.signature, ok: out.ok, code: out.code });
-    if (!out.ok) fail(409, out.code, out.message);
-    res.json(out);
+    const f = config.communityFund;
+    if ([f.operatorWallet, f.treasuryWallet].includes(recipient)) fail(400, "bad_address", "Grants can't go to TEK CITY wallets.");
+    await done(req, res, "community.grant_create", await cr.createGrant({ programId: b.programId, recipient, amount: b.amountBaseUnits, proof: b.proof }, req.admin.wallet), { programId: b.programId, recipient });
   }));
-  async function recordSpend({ programId, recipient, amountBaseUnits, signature, reason, by }) {
-    const p = (await db.query(`SELECT * FROM community_programs WHERE id = $1`, [programId])).rows[0];
-    if (!p || p.status !== "active") return { ok: false, code: "no_program", message: "Spending needs an active, documented program." };
-    const now = new Date();
-    if (now < new Date(p.starts_at) || now > new Date(p.ends_at)) return { ok: false, code: "outside_dates", message: "Program is outside its start/end dates." };
-    const spent = BigInt((await db.query(`SELECT COALESCE(SUM(amount_base_units),0)::text AS n FROM community_fund_spends WHERE program_id = $1 AND status = 'confirmed'`, [programId])).rows[0].n);
-    const amt = BigInt(amountBaseUnits);
-    if (spent + amt > BigInt(p.budget_base_units)) return { ok: false, code: "over_budget", message: "That would exceed the program budget." };
-    const used = (await db.query(`SELECT 1 FROM community_fund_spends WHERE multisig_tx_signature = $1 UNION SELECT 1 FROM creator_reward_allocations WHERE community_transfer_signature = $1`, [signature])).rowCount;
-    if (used) return { ok: false, code: "signature_used", message: "That transaction is already recorded." };
-    const v2 = await cr.verifyMovement(signature, config.communityFund.treasuryWallet, recipient, p.asset_mint, amt);
-    if (!v2.ok) return v2;
-    await db.query(`INSERT INTO community_fund_spends (program_id, recipient_wallet, asset_mint, amount_base_units, multisig_tx_signature, verification_slot, reason, recorded_by_wallet) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [programId, recipient, p.asset_mint, amt.toString(), signature, v2.slot, reason, by]);
-    return { ok: true };
-  }
+  r.post("/community/grants/:id/status", role("grant_approver"), wrap(async (req, res) => {
+    const id = idOf(req);
+    const b = v.obj(req.body, { status: { type: "enum", values: ["approved", "payment_proposed", "rejected", "reversed"] } });
+    await done(req, res, "community.grant_status", await cr.setGrantStatus(id, b.status, req.admin.wallet), { id, status: b.status });
+  }));
+  r.post("/community/grants/:id/verify-payment", role("grant_approver"), wrap(async (req, res) => {
+    const id = idOf(req); const b = v.obj(req.body, { signature: SIG });
+    await done(req, res, "community.grant_verify", await cr.verifyGrantPayment(id, b.signature, req.admin.wallet), { id, signature: b.signature });
+  }));
 
   return r;
 }
