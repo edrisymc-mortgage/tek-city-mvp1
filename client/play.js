@@ -198,7 +198,7 @@ function renderMobile() {
 
 // ------------------------------------------------------------------ drawer
 function openDrawer(id) {
-  S.drawer = id;
+  S.drawer = id; S.drawerAt = performance.now();
   renderDrawer();
   $("#drawer").classList.add("open"); $("#scrim").classList.add("open");
   $("#drawer").setAttribute("aria-hidden", "false");
@@ -223,7 +223,8 @@ function renderDrawer() {
   renderCoinSection(body, S, s, LPCTX);
   renderIcons(dr);
 }
-$("#scrim").addEventListener("click", closeDrawer);
+// Ignore the click a touch tap fires right after it opens the drawer (it lands on the scrim while the sheet slides in).
+$("#scrim").addEventListener("click", () => { if (performance.now() - (S.drawerAt || 0) > 450) closeDrawer(); });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeDrawer(); closeModal(); } });
 
 // ------------------------------------------------------------------ actions

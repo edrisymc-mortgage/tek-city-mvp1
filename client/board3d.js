@@ -202,7 +202,8 @@ const TiltShift = {
   fragmentShader: `uniform sampler2D tDiffuse; uniform float amount, focus, band; uniform vec2 res; varying vec2 vUv;
     void main(){ float d = max(0.0, abs(vUv.y - focus) - band) / (1.0 - band); float r = amount * d * d * 6.0;
       vec4 s = vec4(0.0); float tot = 0.0;
-      for (int i = -4; i <= 4; i++) { for (int j = -4; j <= 4; j++) { vec2 o = vec2(float(i), float(j)) * r / res; float w = 1.0 - length(vec2(i, j)) / 6.0; if (w > 0.0) { s += texture2D(tDiffuse, vUv + o) * w; tot += w; } } }
+      if (r < 0.05) { gl_FragColor = texture2D(tDiffuse, vUv); return; }
+      for (int i = -2; i <= 2; i++) { for (int j = -2; j <= 2; j++) { vec2 o = vec2(float(i), float(j)) * r * 2.0 / res; float w = 1.0 - length(vec2(i, j)) / 3.5; if (w > 0.0) { s += texture2D(tDiffuse, vUv + o) * w; tot += w; } } }
       gl_FragColor = s / tot; }`,
 };
 
@@ -215,9 +216,10 @@ export class Board3D {
     this.hq = !this.mobile && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const w = container.clientWidth || 600, h = container.clientHeight || 600;
     const r = this.renderer = new THREE.WebGLRenderer({ antialias: !this.hq, alpha: true, powerPreference: "high-performance" });
-    r.setPixelRatio(Math.min(this.hq ? 1.75 : 2, window.devicePixelRatio || 1)); r.setSize(w, h);
+    r.setPixelRatio(Math.min(this.hq ? 1.5 : 1.75, window.devicePixelRatio || 1)); r.setSize(w, h);
     r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.AgXToneMapping; r.toneMappingExposure = 1.1;
     r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+    r.shadowMap.autoUpdate = false; r.shadowMap.needsUpdate = true; // shadows re-render only when something moves
     container.append(r.domElement);
     r.domElement.setAttribute("aria-label", "TEK CITY 3D board"); r.domElement.setAttribute("role", "img");
 
@@ -226,14 +228,14 @@ export class Board3D {
     scene.environment = pm.fromScene(new RoomEnvironment(), 0.035).texture;
     scene.environmentIntensity = 0.55;
     scene.fog = new THREE.Fog(0x0c0d0f, 16, 34);
-    const cam = this.camera = new THREE.PerspectiveCamera(30, w / h, 0.1, 120);
+    const cam = this.camera = new THREE.PerspectiveCamera(this.mobile ? 40 : 30, w / h, 0.1, 120);
     this.fit();
 
     // Lighting: one soft key light (window), cool low fill, warm bounce.
     scene.add(new THREE.HemisphereLight(0xdfe6ee, 0x2a1e16, 0.35));
     const key = this.key = new THREE.DirectionalLight(0xfff1e0, 2.6);
     key.position.set(-6, 11, 5); key.castShadow = true;
-    key.shadow.mapSize.set(this.hq ? 4096 : 1536, this.hq ? 4096 : 1536);
+    key.shadow.mapSize.set(this.hq ? 2048 : 1024, this.hq ? 2048 : 1024);
     Object.assign(key.shadow.camera, { left: -6.5, right: 6.5, top: 6.5, bottom: -6.5, near: 1, far: 32 });
     key.shadow.bias = -0.0004; key.shadow.normalBias = 0.02; key.shadow.radius = 4; scene.add(key);
     const fill = new THREE.DirectionalLight(0xc9d6e6, 0.35); fill.position.set(7, 5, -4); scene.add(fill);
@@ -256,7 +258,7 @@ export class Board3D {
     this.vault = new THREE.Group();
     const plinth = new THREE.Mesh(new RoundedBoxGeometry(1.25, 0.16, 1.25, 4, 0.03), new THREE.MeshStandardMaterial({ color: 0x8f9298, metalness: 1, roughness: 0.28 }));
     plinth.position.y = 0.1; plinth.castShadow = true; plinth.receiveShadow = true;
-    const glass = new THREE.Mesh(new THREE.BoxGeometry(1.05, 1.0, 1.05), new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0, roughness: 0.04, transmission: 1, thickness: 0.05, ior: 1.45, transparent: true, opacity: 0.25, envMapIntensity: 1.2 }));
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(1.05, 1.0, 1.05), new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0, roughness: 0.04, transparent: true, opacity: 0.16, envMapIntensity: 1.4, depthWrite: false }));
     glass.position.y = 0.68;
     this.coinStack = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.17, 0.17, 0.028, 40), new THREE.MeshStandardMaterial({ color: 0xc9a14a, metalness: 1, roughness: 0.25 }), 120);
     this.coinStack.castShadow = true; this.coinStack.count = 0;
@@ -272,7 +274,7 @@ export class Board3D {
     // Post-processing (desktop): AO grounds every object, tilt-shift sells the scale model.
     if (this.hq) {
       try {
-        const rt = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, samples: 4 });
+        const rt = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, samples: 2 });
         const comp = this.composer = new EffectComposer(r, rt);
         comp.addPass(new RenderPass(scene, cam));
         const ao = new GTAOPass(scene, cam, w, h); ao.blendIntensity = 0.85;
@@ -285,7 +287,8 @@ export class Board3D {
     }
 
     this.controls = new OrbitControls(cam, r.domElement);
-    Object.assign(this.controls, { enablePan: false, enableDamping: true, dampingFactor: 0.07, minDistance: 7, maxDistance: this.mobile ? 42 : 24, minPolarAngle: 0.2, maxPolarAngle: 1.2, rotateSpeed: 0.55, zoomSpeed: 0.7 });
+    this.controls.addEventListener("change", () => this.invalidate());
+    Object.assign(this.controls, { enablePan: false, enableDamping: true, dampingFactor: 0.07, minDistance: 7, maxDistance: this.mobile ? 40 : 24, minPolarAngle: 0.2, maxPolarAngle: 1.2, rotateSpeed: 0.55, zoomSpeed: 0.7 });
     this.fit();
     if (this.mobile) { this.controls.enabled = false; r.domElement.style.touchAction = "pan-y"; }
 
@@ -295,10 +298,24 @@ export class Board3D {
       if (!this.down || Math.hypot(e.clientX - this.down[0], e.clientY - this.down[1]) > 6) return;
       const hit = this.pick(e); if (hit !== null) this.onSelect(hit);
     });
-    r.domElement.addEventListener("pointermove", (e) => { if (this.mobile) return; const id = this.pick(e); this.hover(id); r.domElement.style.cursor = id !== null ? "pointer" : "grab"; });
+    // Hover picking at most once per frame, not on every mouse event.
+    let pending = null;
+    r.domElement.addEventListener("pointermove", (e) => {
+      if (this.mobile) return;
+      if (pending) { pending = e; return; }
+      pending = e;
+      requestAnimationFrame(() => { const ev = pending; pending = null; const id = this.pick(ev); if (id !== this.hovered) { this.hovered = id; this.hover(id); this.invalidate(true); } r.domElement.style.cursor = id !== null ? "pointer" : "grab"; });
+    });
+    r.domElement.addEventListener("pointerdown", () => { this.interacting = true; this.invalidate(); });
+    window.addEventListener("pointerup", () => { this.interacting = false; });
+    r.domElement.addEventListener("wheel", () => this.invalidate(), { passive: true });
+    // Skip rendering while the board is scrolled out of view.
+    this.visible = true;
+    if ("IntersectionObserver" in window) { this.io = new IntersectionObserver(([en]) => { this.visible = en.isIntersecting; if (this.visible) this.invalidate(); }); this.io.observe(container); }
 
     this.ro = new ResizeObserver(() => this.resize()); this.ro.observe(container);
     this.clock = new THREE.Clock(); this.anims = [];
+    this.dirty = true; this.lastRender = 0; this.slow = 0; this.frames = 0;
     const loop = () => { this.frame = requestAnimationFrame(loop); this.tick(); };
     loop();
   }
@@ -327,6 +344,7 @@ export class Board3D {
   }
 
   resize() {
+    this.invalidate(true);
     const w = this.container.clientWidth, h = this.container.clientHeight;
     if (!w || !h) return;
     this.renderer.setSize(w, h); this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
@@ -338,7 +356,9 @@ export class Board3D {
     const cam = this.camera, a = cam.aspect || 1;
     const elev = (this.mobile ? 64 : 50) * Math.PI / 180;
     const vt = Math.tan((cam.fov * Math.PI) / 360), ht = vt * a;
-    const d = Math.max((this.mobile && a < 1 ? 5.3 : 4.25) / ht, (this.mobile ? 3.25 : 3.6) / vt) + (this.mobile ? 1.6 : 0.9);
+    const d = Math.max((this.mobile && a < 1 ? 4.75 : 4.25) / ht, (this.mobile ? 3.25 : 3.6) / vt) + (this.mobile ? 1.2 : 0.9);
+    // Fog follows the camera distance; a fixed fog range blacked out the board when the mobile camera sat further back.
+    if (this.scene && this.scene.fog) { this.scene.fog.near = d + 2; this.scene.fog.far = d + 22; }
     const tz = this.mobile ? -0.1 : 0.2;
     cam.position.set(0, Math.sin(elev) * d, Math.cos(elev) * d + tz);
     cam.lookAt(0, 0, tz);
@@ -347,6 +367,7 @@ export class Board3D {
 
   // ---------------------------------------------------------------- state
   update(city, me) {
+    this.invalidate(true);
     for (const s of city.stops) {
       const d = city.districts.find((x) => x.id === s.id);
       const hood = s.hood ? city.neighborhoods[s.hood] : null;
@@ -430,6 +451,7 @@ export class Board3D {
   }
 
   setVault(frac) {
+    this.invalidate(true);
     const f = Math.max(0, Math.min(1, frac || 0));
     const n = Math.round(4 + f * 110), m = new THREE.Matrix4(), r = rng(3);
     for (let i = 0; i < n; i++) {
@@ -470,13 +492,36 @@ export class Board3D {
   ease(k) { return k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2; }
   tween(ms, fn) { return new Promise((res) => this.anims.push({ t0: performance.now(), ms, fn, res })); }
 
+  // Ask for a redraw. `shadows` also refreshes the shadow map (something moved).
+  invalidate(shadows = false) { this.dirty = true; if (shadows && this.renderer) this.renderer.shadowMap.needsUpdate = true; }
+
+  // Drop the post-processing stack if this machine can't hold a smooth frame rate with it.
+  adapt(dt) {
+    if (!this.composer || this.adapted) return;
+    this.frames++; if (dt > 24) this.slow++;
+    if (this.frames >= 60) {
+      this.adapted = true;
+      if (this.slow > 20) { this.composer = null; this.renderer.setPixelRatio(Math.min(1.25, window.devicePixelRatio || 1)); this.resize(); this.invalidate(true); }
+    }
+  }
+
   tick() {
     const now = performance.now(), t = this.clock.getElapsedTime();
+    if (!this.visible) return;
+    const busy = this.anims.length > 0 || this.moving;
+    const ambient = this.coinMeshes.size > 0 || !!(this.me && this.me.userData.halo) || this.crisis.visible;
+    // Full frame rate while something moves or the user is dragging; ~24 fps for idle ambient motion; nothing when static.
+    if (!busy && !this.dirty && !this.interacting && !(ambient && now - this.lastRender > 42)) { if (this.controls.enabled) this.controls.update(); return; }
+    if (busy) this.renderer.shadowMap.needsUpdate = true;
     this.anims = this.anims.filter((a) => { const k = Math.min(1, (now - a.t0) / a.ms); a.fn(k); if (k >= 1) { a.res(); return false; } return true; });
     for (const [id, cm] of this.coinMeshes) cm.userData.disc.rotation.y = t * 0.9 + id;
     if (this.me && this.me.userData.halo) this.me.userData.halo.material.opacity = 0.45 + Math.sin(t * 2.4) * 0.25;
     if (this.crisis.visible) this.crisis.material.opacity = 0.35 + Math.sin(t * 3) * 0.25;
     if (this.controls.enabled) this.controls.update();
+    const t0 = performance.now();
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
+    if (this.dirty || busy || this.interacting) this.adapt(now - (this.lastRender || now));
+    this.lastRender = now; this.dirty = false;
+    void t0;
   }
 }

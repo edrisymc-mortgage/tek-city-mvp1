@@ -42,7 +42,7 @@ body.play { overflow-x: hidden; background: #0a0b0d; }
 
 /* board */
 .board-wrap { position: sticky; top: 56px; height: calc(100vh - 56px); min-height: 560px; }
-@media (max-width: 900px) { .board-wrap { position: relative; top: 0; height: 74vh; min-height: 420px; } }
+@media (max-width: 900px) { .board-wrap { position: relative; top: 0; height: min(74vh, 118vw); min-height: 380px; } }
 .board3d { position: absolute; inset: 0; }
 .board3d .stage { position: absolute; inset: 0; }
 .board3d canvas { display: block; width: 100% !important; height: 100% !important; outline: none; cursor: grab; }
