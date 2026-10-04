@@ -22,7 +22,10 @@ const LADDER = [
   { id: "m2m", mcap: 2_000_000, title: "$25 to every holder", body: "Every holder wallet with 500K+ TEK CITY gets $25 in SOL.", rewards: [{ kind: "airdrop", usd: 25 }] },
   { id: "m4m", mcap: 4_000_000, title: "Second burn", body: "50% of the remaining treasury is burned.", rewards: [{ kind: "burn", bps: 5000 }] },
   { id: "m8m", mcap: 8_000_000, title: "Double hourly rewards", body: "Hourly holder payouts go from 20% to 40% of the pool for 30 days, plus 3 free spins for everyone.", rewards: [{ kind: "boost", hourlyBps: 4000, hours: 720 }, { kind: "spins", n: 3 }] },
-  { id: "m16m", mcap: 16_000_000, title: "Final drop", body: "The rest of the treasury is split across holders by balance.", rewards: [{ kind: "drop", bps: 10000 }] },
+  { id: "m16m", mcap: 16_000_000, title: "$50 to every holder", body: "Every holder wallet with 500K+ TEK CITY gets $50 in SOL, plus 3 free spins for everyone.", rewards: [{ kind: "airdrop", usd: 50 }, { kind: "spins", n: 3 }] },
+  { id: "m32m", mcap: 32_000_000, title: "Jackpot month", body: "The Vault pays 80% of the pool for 30 days, plus 5 free spins for everyone.", rewards: [{ kind: "boost", jackpotBps: 8000, hours: 720 }, { kind: "spins", n: 5 }] },
+  { id: "m64m", mcap: 64_000_000, title: "$100 to every holder", body: "Every holder wallet with 500K+ TEK CITY gets $100 in SOL.", rewards: [{ kind: "airdrop", usd: 100 }] },
+  { id: "m100m", mcap: 100_000_000, title: "Final drop", body: "The rest of the treasury is split across holders by balance.", rewards: [{ kind: "drop", bps: 10000 }] },
 ];
 
 let CFG = null;
