@@ -1,0 +1,12 @@
+# Launch checklist
+- [ ] `DATABASE_URL` set to Render Postgres internal URL; `/health` shows `"persistent": true`
+- [ ] `SESSION_SECRET` generated (32+ chars); `/health` shows `"sessionsPersistent": true`
+- [ ] `APP_URL` matches the real domain; `ALLOWED_ORIGINS` contains only official origins
+- [ ] Render Postgres on a paid plan with backups (free DBs expire and have no backups)
+- [ ] `ADMIN_WALLET_ALLOWLIST` set (or intentionally empty), admin sign-in tested
+- [ ] `FEATURE_ONCHAIN_ACTIONS=false`, `FEATURE_MAINNET=false`
+- [ ] Official links / support email configured; token mint left empty unless officially announced
+- [ ] Terms, Privacy, Risk pages reviewed by counsel
+- [ ] Error monitoring (SENTRY_DSN or Render alerts) and uptime check on `/health`
+- [ ] `npm test` passes; manual test: guest play, wallet sign-in, round tick, mobile layout
+- [ ] Before scaling beyond one instance: move rate limits to Redis

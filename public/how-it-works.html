@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>How TEK CITY works</title>
+<meta name="description" content="Rules of TEK CITY: rounds, districts, the Community Vault, City Briefs, crises, and daily goals.">
+<meta name="theme-color" content="#0a1f17">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/css/base.css?v=7143c08705">
+</head>
+<body class="">
+<header class="site-header"><div class="wrap">
+  <a class="logo" href="/" aria-label="TEK CITY home"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="8" fill="#173d2d" stroke="#c9972b" stroke-width="1.5"/><path d="M8 23V14h4v9M14 23V8h4v15M20 23v-6h4v6" fill="#f4ecd8"/><path d="M5 26.5h22" stroke="#e2b33c" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 3.2"/></svg><b>TEK CITY</b><span class="beta">Beta</span></a>
+  <button class="nav-toggle" aria-expanded="false" aria-controls="site-nav"><span class="sr-only">Menu</span><i data-lucide="menu"></i></button>
+  <nav class="nav" id="site-nav"><a href="/play">Play</a><a href="/how-it-works" aria-current="page">How it works</a><a href="/wallet-safety">Wallet safety</a><a href="/official-links">Official links</a><a class="btn btn-primary btn-sm" href="/play"><i data-lucide="play"></i>Play now</a></nav>
+</div></header>
+<main class="wrap"><section class="page-hero prose"><span class="kicker">Rules</span><h1>How it works</h1>
+  <p class="muted">TEK CITY is a cooperative strategy game. The whole server shares one city. You win together by building it up before the day ends.</p></section>
+  <div class="prose">
+  <h2>The clock</h2>
+  <p>A city day runs from 00:00 to 24:00 UTC and has 96 rounds of exactly 15 minutes. During a round you can act. At the tick, the server closes the round, validates and resolves everything, updates districts and the Vault, records the leaderboard, writes an audit log, and opens the next round. Your browser never decides outcomes.</p>
+  <h2>Your resources</h2>
+  <ul>
+    <li><b>Energy</b> (max 12): spent to move (2) and contribute (1). Refills by 2 every round.</li>
+    <li><b>Build Credits</b>: earned by checking in, riding the line, and visiting stops. Spent on district contributions.</li>
+    <li><b>Influence</b>: your score. Earned by contributing, voting, and being part of upgrades. Ranks the daily leaderboard.</li>
+  </ul>
+  <p>All resources are off-chain game points. They cannot be bought, sold, transferred, or cashed out.</p>
+  <h2>Each round you can</h2>
+  <ul>
+    <li><b>Check in</b> once: +15 Build Credits (more with Brick Quarter upgrades), +1 Energy, +1 Influence.</li>
+    <li><b>Ride the Transit Line</b> once: the server rolls 1 to 6. Passing Central Station pays Build Credits. Landing on a district puts you on site for 1.5x District XP this round.</li>
+    <li><b>Contribute</b> up to 3 times: 10 to 200 Build Credits to any district. 20% of every contribution also fills the Community Vault.</li>
+    <li><b>Vote</b> on the City Brief. The majority choice is applied at the tick.</li>
+  </ul>
+  <h2>Districts and neighborhoods</h2>
+  <p>There are 16 districts in six neighborhoods. Each district has five levels. When a district's XP passes its threshold, it levels up at the next tick and every contributor at that level earns Influence and the Crew Chief badge. Each neighborhood produces something different for the whole city:</p>
+  <table class="simple"><thead><tr><th>Neighborhood</th><th>City effect</th></tr></thead><tbody id="hood-table"></tbody></table>
+  <h2>Citizens</h2>
+  <p>Makers, Merchants, and Residents react to City Brief decisions. Happy factions (70+) give bonuses; unhappy factions (30 or less) make things harder. Moods drift back toward neutral over time.</p>
+  <h2>Crises</h2>
+  <p>As the day goes on, crises arrive more often and get more severe. A crisis targets one district and sets a District XP target for the round. Meet it and the city gains Stability. Miss it and that district loses some XP and the city loses Stability. Crises never take resources from players.</p>
+  <h2>Winning and losing</h2>
+  <ul>
+    <li><b>City Thrives</b>: reach 36 total district levels and 3 Vault milestones in one day. Everyone who played that day earns the City Thrives badge and bonus Influence.</li>
+    <li><b>Blackout</b>: if Stability hits zero, the daily goal is lost and the city spends 4 rounds recovering at half build speed.</li>
+    <li><b>Unfinished</b>: the day ends without reaching the goal.</li>
+  </ul>
+  <p>At midnight UTC the city resets: districts return to Level 1 and the Vault empties. Your resources, badges, and all-time Influence carry over.</p>
+  <h2>Fair play</h2>
+  <p>There is nothing to buy. Rate limits and abuse checks apply to everyone. Multiple accounts to farm the leaderboard may be removed.</p>
+  </div></main>
+<footer class="site-footer"><div class="wrap">
+  <div class="cols">
+    <div>
+      <a class="logo" href="/"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="8" fill="#173d2d" stroke="#c9972b" stroke-width="1.5"/><path d="M8 23V14h4v9M14 23V8h4v15M20 23v-6h4v6" fill="#f4ecd8"/><path d="M5 26.5h22" stroke="#e2b33c" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 3.2"/></svg><b>TEK CITY</b><span class="beta">Beta</span></a>
+      <p class="muted mt12">A cooperative city-building game. Free to play. Off-chain game resources only. Wallets are optional and used only for identity.</p>
+    </div>
+    <div><h4>Game</h4><ul><li><a href="/play">Play</a></li><li><a href="/how-it-works">How it works</a></li><li><a href="/official-links">Official links</a></li></ul></div>
+    <div><h4>Safety</h4><ul><li><a href="/wallet-safety">Wallet safety</a></li><li><a href="/report">Report a scam</a></li><li><a href="/contact">Contact &amp; support</a></li></ul></div>
+    <div><h4>Legal</h4><ul><li><a href="/terms">Terms</a></li><li><a href="/privacy">Privacy</a></li><li><a href="/risk">Risk disclosure</a></li></ul></div>
+  </div>
+  <p class="fine">TEK CITY is in public beta and may change or reset. Game resources (Energy, Build Credits, Influence, District XP, Vault progress) have no monetary value, cannot be bought, sold, transferred, or withdrawn. TEK CITY will never ask for your seed phrase, recovery phrase, or private key.</p>
+</div></footer>
+<script src="/assets/js/site.js?v=7143c08705" defer></script>
+<script src="/assets/js/rules.js?v=7143c08705" defer></script>
+</body>
+</html>

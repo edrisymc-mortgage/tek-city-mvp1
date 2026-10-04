@@ -1,3 +1,8 @@
 node_modules/
-data/
 .env
+.env.*
+!.env.example
+data/
+pgdata/
+*.log
+.DS_Store

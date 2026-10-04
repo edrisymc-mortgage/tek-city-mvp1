@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Play · TEK CITY</title>
+<meta name="description" content="Play TEK CITY.">
+<meta name="theme-color" content="#0a1f17">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/css/base.css?v=7143c08705">
+<link rel="stylesheet" href="/assets/css/play.css?v=7143c08705">
+</head>
+<body class="play">
+
+<div class="paused-banner" id="paused"></div>
+<header class="topbar">
+  <a class="logo" href="/" aria-label="TEK CITY home"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="8" fill="#173d2d" stroke="#c9972b" stroke-width="1.5"/><path d="M8 23V14h4v9M14 23V8h4v15M20 23v-6h4v6" fill="#f4ecd8"/><path d="M5 26.5h22" stroke="#e2b33c" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 3.2"/></svg><b>TEK CITY</b><span class="beta">Beta</span></a>
+  <div class="round-box">
+    <div><span class="lbl">Round</span><span class="val" id="round-no">--</span></div>
+    <div class="countdown" id="countdown-box"><span class="lbl">Next tick</span><span class="val" id="countdown" aria-live="off">--:--</span></div>
+    <div><span class="lbl">Day</span><span class="val" id="day-label">--</span></div>
+  </div>
+  <div class="top-right" id="top-right">
+    <span class="wallet-hint"><i data-lucide="shield-check"></i>Wallet is optional. We never ask for your seed phrase.</span>
+    <div id="account-slot"></div>
+  </div>
+</header>
+<main class="play-shell">
+  <aside class="col-left">
+    <section class="panel" id="player-panel"><h3>Your builder</h3><div id="player"></div></section>
+    <section class="panel"><h3>Today's goal <span class="r" id="day-status"></span></h3><div id="goal-mini" class="muted small"></div></section>
+  </aside>
+  <section class="col-center">
+    <div id="event"></div>
+    <div class="board-wrap"><div class="board" id="board"></div><div class="board-legend" id="legend"></div></div>
+    <div class="goal" id="goal"></div>
+    <div class="day-banner" id="day-banner"></div>
+  </section>
+  <aside class="col-right">
+    <section class="panel"><h3>Community Vault <span class="r" id="vault-ms"></span></h3><div id="vault"></div></section>
+    <section class="panel"><h3>Leaderboard</h3><div class="tabs" role="tablist"><button role="tab" aria-selected="true" data-lb="today">Today</button><button role="tab" aria-selected="false" data-lb="allTime">All time</button></div><ol class="lb" id="lb"></ol></section>
+    <section class="panel"><h3>Citizens</h3><div class="moods" id="moods"></div></section>
+    <section class="panel"><h3>City feed <span class="r" id="live-dot">live</span></h3><ul class="feed" id="feed"></ul></section>
+  </aside>
+</main>
+<nav class="mobile-bar" id="mobile-bar" aria-label="Actions"></nav>
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true" aria-labelledby="dr-title"></aside>
+<div class="modal" id="modal" role="dialog" aria-modal="true"><div class="box" id="modal-box"></div></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="/assets/js/play.js?v=7143c08705" defer></script>
+</body>
+</html>

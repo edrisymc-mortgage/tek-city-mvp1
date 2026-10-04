@@ -1,107 +1,87 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TEK CITY — Live Board</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/styles.css" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TEK CITY · Build the city. Own the culture.</title>
+<meta name="description" content="TEK CITY is a free cooperative online city-building game. Every 15 minutes the board evolves.">
+<meta name="theme-color" content="#0a1f17">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/css/base.css?v=7143c08705">
 </head>
-<body>
-  <div class="app">
-    <section class="board-wrap">
-      <div id="board" class="board" aria-label="TEK CITY board">
-        <div class="center" id="center">
-          <div class="brand">
-            <span class="eyebrow">Live cooperative city board</span>
-            <h1>TEK CITY</h1>
-          </div>
-
-          <div class="clock-row">
-            <div class="clock-card">
-              <span class="label">City time</span>
-              <strong id="clock">00:00</strong>
-              <span class="sub" id="roundLabel">Round 1 / 96 · Day 1</span>
-            </div>
-            <div class="clock-card">
-              <span class="label">Next round in</span>
-              <strong id="countdown">15:00</strong>
-              <div class="bar"><div id="roundBar"></div></div>
-            </div>
-            <div class="clock-card vault-card">
-              <span class="label">Community Vault</span>
-              <strong id="vault">0</strong>
-              <span class="sub">shared by the city</span>
-            </div>
-          </div>
-
-          <div class="turn-zone">
-            <div class="dice" id="dice"><div class="die" id="d1">–</div><div class="die" id="d2">–</div></div>
-            <div class="turn-copy">
-              <div id="turnTitle" class="turn-title">Join to play</div>
-              <div id="turnText" class="turn-text">Every player gets one roll per 15-minute round.</div>
-            </div>
-            <button id="rollBtn" class="btn primary" disabled>Roll dice</button>
-          </div>
-
-          <div id="actionPanel" class="action-panel hidden"></div>
-          <div id="cardFlash" class="card-flash hidden"></div>
-        </div>
-        <div id="tokenLayer" class="token-layer"></div>
+<body class="">
+<header class="site-header"><div class="wrap">
+  <a class="logo" href="/" aria-label="TEK CITY home"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="8" fill="#173d2d" stroke="#c9972b" stroke-width="1.5"/><path d="M8 23V14h4v9M14 23V8h4v15M20 23v-6h4v6" fill="#f4ecd8"/><path d="M5 26.5h22" stroke="#e2b33c" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 3.2"/></svg><b>TEK CITY</b><span class="beta">Beta</span></a>
+  <button class="nav-toggle" aria-expanded="false" aria-controls="site-nav"><span class="sr-only">Menu</span><i data-lucide="menu"></i></button>
+  <nav class="nav" id="site-nav"><a href="/play">Play</a><a href="/how-it-works">How it works</a><a href="/wallet-safety">Wallet safety</a><a href="/official-links">Official links</a><a class="btn btn-primary btn-sm" href="/play"><i data-lucide="play"></i>Play now</a></nav>
+</div></header>
+<main class="wrap">
+  <section class="hero">
+    <div>
+      <span class="kicker">Live city · Beta</span>
+      <h1>Build the city.<br><em>Own the culture.</em></h1>
+      <p class="lede">TEK CITY runs 24/7. Every 15 minutes the board evolves. Check in, ride the Transit Line, and put your Build Credits into the districts you want to see rise. Every upgrade is a group effort.</p>
+      <div class="hero-ctas">
+        <a class="btn btn-primary" href="/play"><i data-lucide="play"></i>Play as guest</a>
+        <a class="btn btn-ghost" href="/play#wallet"><i data-lucide="wallet"></i>Connect wallet</a>
       </div>
-    </section>
-
-    <aside class="side">
-      <div class="panel" id="joinPanel">
-        <div class="panel-head"><span>Enter the city</span><span class="live"><i></i>LIVE</span></div>
-        <form id="joinForm" class="join-form">
-          <input id="nameInput" maxlength="16" placeholder="Your name" autocomplete="off" />
-          <button class="btn primary" type="submit">Join</button>
-        </form>
-        <p class="hint">Open this page in a second tab or on your phone to test multiplayer.</p>
-        <p id="joinError" class="error"></p>
+      <p class="safety-note"><i data-lucide="shield-check"></i>Connect a wallet for optional player identity. TEK CITY never asks for your seed phrase or private key.</p>
+    </div>
+    <div class="hero-art" aria-hidden="true">
+      <div class="mini-map">
+        <span class="s"></span><span class="mm-blue h60"></span><span class="mm-blue h40"></span><span class="s"></span><span class="mm-blue h80"></span><span class="s"></span>
+        <span class="mm-green h30"></span><span class="mm-red h55"></span><span class="mm-red h70"></span><span class="s"></span><span class="mm-red h35"></span><span class="mm-green h50"></span>
+        <span class="mm-green h45"></span><span class="mm-green h20"></span><span class="s"></span><span class="mm-gold h65"></span><span class="mm-gold h25"></span><span class="s"></span>
+        <span class="mm-teal h90"></span><span class="mm-teal h60"></span><span class="mm-teal h30"></span><span class="s"></span><span class="mm-yellow h40"></span><span class="mm-yellow h75"></span>
       </div>
+      <div class="hero-badge"><span class="ink2">Community Vault</span><b id="hero-vault">Live</b></div>
+    </div>
+  </section>
+  <div class="ticker" id="ticker" aria-live="polite"><span>Round <b id="t-round">--</b> of 96</span><span>Next tick in <b id="t-count">--:--</b></span><span>City stability <b id="t-stab">--</b></span><span>Builders today <b id="t-players">--</b></span></div>
 
-      <div class="panel" id="mePanel" hidden>
-        <div class="panel-head"><span>Your city account</span><span class="live"><i></i>LIVE</span></div>
-        <div class="me">
-          <div class="me-token" id="meToken">◆</div>
-          <div><div id="meName" class="me-name">—</div><div id="mePos" class="muted">—</div></div>
-          <div class="me-credits"><span class="label">Credits</span><strong id="meCredits">0</strong></div>
-        </div>
-        <div class="me-stats"><div><span class="label">Net worth</span><strong id="meWorth">0</strong></div><div><span class="label">Districts held</span><strong id="meHeld">0</strong></div></div>
-      </div>
+  <section class="grid-3">
+    <div class="card feature"><h3><i data-lucide="clock"></i>A city that never sleeps</h3><p class="muted">One city day has 96 rounds of exactly 15 minutes. When the clock hits zero, the server settles every action, upgrades districts, and opens the next round.</p></div>
+    <div class="card feature"><h3><i data-lucide="hammer"></i>Build together</h3><p class="muted">Districts are shared construction zones. Contributions push upgrade meters, and everyone who helped gets credit, badges, and leaderboard points. No one can drain your resources.</p></div>
+    <div class="card feature"><h3><i data-lucide="landmark"></i>Community Vault</h3><p class="muted">Part of every contribution fills the Community Vault. Milestones unlock city-wide build boosts, badges, and new content for everyone.</p></div>
+  </section>
 
-      <div class="panel">
-        <div class="panel-head"><span>Players</span><span class="muted" id="playerCount">0 / 8</span></div>
-        <ul id="players" class="players"></ul>
+  <section class="grid-2 mt64">
+    <div>
+      <span class="kicker">The loop</span>
+      <h2>Check in. Move. Build. Leave.</h2>
+      <div class="steps">
+        <div><p><b>Check in</b> once per round for Build Credits, Energy, and Influence.</p></div>
+        <div><p><b>Ride the Transit Line.</b> The server rolls your move. Landing on a district puts you on site for a 1.5x build bonus.</p></div>
+        <div><p><b>Contribute</b> Build Credits to districts, vote on the City Brief, and help contain crises.</p></div>
+        <div><p><b>Come back later.</b> Energy refills every round, so a few minutes at a time is enough.</p></div>
       </div>
-
-      <div class="panel" id="inspect">
-        <div class="panel-head"><span>Space intel</span><span class="muted">tap any space</span></div>
-        <div id="inspectBody" class="inspect-body muted">Select a board space to see its details.</div>
-      </div>
-
-      <div class="panel feed-panel">
-        <div class="panel-head"><span>City wire</span><span class="muted">live feed</span></div>
-        <ul id="feed" class="feed"></ul>
-      </div>
-
-      <div class="panel controls">
-        <div class="panel-head"><span>Test controls</span></div>
-        <div class="control-row">
-          <button id="skipBtn" class="btn ghost">Skip to next round</button>
-          <button id="leaveBtn" class="btn ghost">Leave game</button>
-          <button id="resetBtn" class="btn danger">Reset board</button>
-        </div>
-        <p class="hint">Virtual credits only. No wallets, tokens, or real money.</p>
-      </div>
-    </aside>
+    </div>
+    <div class="card-paper">
+      <h3 class="paper-title">What TEK CITY is not</h3>
+      <ul class="list-check no mt12">
+        <li><i data-lucide="x"></i><span>Not an investment, a token sale, or a way to earn money.</span></li>
+        <li><i data-lucide="x"></i><span>No buying game resources, no paid rolls, no cash prizes, no withdrawals.</span></li>
+        <li><i data-lucide="x"></i><span>No transactions. Signing in only proves you control a wallet address.</span></li>
+        <li><i data-lucide="x"></i><span>We never ask for a seed phrase, private key, or password.</span></li>
+      </ul>
+      <p class="mt16 mb0"><a href="/wallet-safety">Read wallet safety</a> · <a href="/risk">Risk disclosure</a></p>
+    </div>
+  </section>
+</main>
+<footer class="site-footer"><div class="wrap">
+  <div class="cols">
+    <div>
+      <a class="logo" href="/"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="8" fill="#173d2d" stroke="#c9972b" stroke-width="1.5"/><path d="M8 23V14h4v9M14 23V8h4v15M20 23v-6h4v6" fill="#f4ecd8"/><path d="M5 26.5h22" stroke="#e2b33c" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 3.2"/></svg><b>TEK CITY</b><span class="beta">Beta</span></a>
+      <p class="muted mt12">A cooperative city-building game. Free to play. Off-chain game resources only. Wallets are optional and used only for identity.</p>
+    </div>
+    <div><h4>Game</h4><ul><li><a href="/play">Play</a></li><li><a href="/how-it-works">How it works</a></li><li><a href="/official-links">Official links</a></li></ul></div>
+    <div><h4>Safety</h4><ul><li><a href="/wallet-safety">Wallet safety</a></li><li><a href="/report">Report a scam</a></li><li><a href="/contact">Contact &amp; support</a></li></ul></div>
+    <div><h4>Legal</h4><ul><li><a href="/terms">Terms</a></li><li><a href="/privacy">Privacy</a></li><li><a href="/risk">Risk disclosure</a></li></ul></div>
   </div>
-
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="/app.js"></script>
+  <p class="fine">TEK CITY is in public beta and may change or reset. Game resources (Energy, Build Credits, Influence, District XP, Vault progress) have no monetary value, cannot be bought, sold, transferred, or withdrawn. TEK CITY will never ask for your seed phrase, recovery phrase, or private key.</p>
+</div></footer>
+<script src="/assets/js/site.js?v=7143c08705" defer></script>
+<script src="/assets/js/landing.js?v=7143c08705" defer></script>
 </body>
 </html>
