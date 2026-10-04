@@ -353,3 +353,7 @@ body.play { background: var(--g950); }
   .hud3d .roll-why { font-size: 10.5px; max-width: 150px; white-space: normal; line-height: 1.15; }
   .hint3d { font-size: 9px; top: 8px; }
 }
+.board3d .stage { bottom: 64px; }
+.hud3d { bottom: 10px; }
+.board3d { aspect-ratio: 1 / 0.9; }
+@media (max-width: 900px) { .board3d { aspect-ratio: 1 / 1.12; } .board3d .stage { bottom: 54px; } .hud3d { bottom: 8px; } }

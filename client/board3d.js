@@ -129,8 +129,7 @@ export class Board3D {
     const scene = this.scene = new THREE.Scene();
     const cam = this.camera = new THREE.PerspectiveCamera(36, w / h, 0.1, 100);
     this.mobile = window.matchMedia("(max-width: 900px)").matches;
-    cam.position.set(0, this.mobile ? 11.6 : 8.4, this.mobile ? 5.2 : 6.9);
-    cam.lookAt(0, 0, 0.55);
+    this.fit();
 
     scene.add(new THREE.HemisphereLight(0xfff4dc, 0x0b2318, 1.1));
     const sun = new THREE.DirectionalLight(0xffe7b8, 2.2);
@@ -172,7 +171,7 @@ export class Board3D {
     // Controls: drag to rotate on desktop; fixed camera on touch so page scrolling works
     this.controls = new OrbitControls(cam, r.domElement);
     Object.assign(this.controls, { enablePan: false, enableDamping: true, dampingFactor: 0.08, minDistance: 7, maxDistance: 18, minPolarAngle: 0.25, maxPolarAngle: 1.15, rotateSpeed: 0.6 });
-    this.controls.target.set(0, 0, 0.55);
+    this.controls.target.set(0, 0, 0.35);
     if (this.mobile) { this.controls.enabled = false; r.domElement.style.touchAction = "pan-y"; }
 
     this.ray = new THREE.Raycaster(); this.ptr = new THREE.Vector2(); this.down = null;
@@ -208,6 +207,18 @@ export class Board3D {
     const w = this.container.clientWidth, h = this.container.clientHeight;
     if (!w || !h) return;
     this.renderer.setSize(w, h); this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
+    this.fit();
+  }
+
+  // Frame the whole board for the current aspect ratio (keeps every edge space on screen).
+  fit() {
+    const cam = this.camera, a = cam.aspect || 1;
+    const elev = (a < 0.95 ? 64 : 52) * Math.PI / 180;
+    const vt = Math.tan((cam.fov * Math.PI) / 360), ht = vt * a;
+    const d = Math.max(4.15 / ht, 3.55 / vt) + 2.2;
+    cam.position.set(0, Math.sin(elev) * d, Math.cos(elev) * d + 0.35);
+    cam.lookAt(0, 0, 0.35);
+    if (this.controls) { this.controls.target.set(0, 0, 0.35); this.controls.update(); }
   }
 
   // ---------------------------------------------------------------- state
