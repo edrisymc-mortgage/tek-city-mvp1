@@ -216,9 +216,10 @@ export class Board3D {
     const elev = (this.mobile ? 66 : 52) * Math.PI / 180;
     const vt = Math.tan((cam.fov * Math.PI) / 360), ht = vt * a;
     const d = Math.max(4.1 / ht, (this.mobile ? 3.2 : 3.55) / vt) + (this.mobile ? 1.4 : 2.2);
-    cam.position.set(0, Math.sin(elev) * d, Math.cos(elev) * d + 0.35);
-    cam.lookAt(0, 0, 0.35);
-    if (this.controls) { this.controls.target.set(0, 0, 0.35); this.controls.update(); }
+    const tz = this.mobile ? -0.45 : 0.2;
+    cam.position.set(0, Math.sin(elev) * d, Math.cos(elev) * d + tz);
+    cam.lookAt(0, 0, tz);
+    if (this.controls) { this.controls.target.set(0, 0, tz); this.controls.update(); }
   }
 
   // ---------------------------------------------------------------- state
