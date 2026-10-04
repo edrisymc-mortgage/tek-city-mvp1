@@ -199,6 +199,11 @@ PAGES["wallet-safety"] = () => layout({
   </div></main>`,
 });
 
+const legal = (path, title, kicker, html) => layout({
+  path, title: `${title} · TEK CITY`, description: `${title} for TEK CITY (beta).`,
+  body: `<main class="wrap"><section class="page-hero prose"><span class="kicker">${kicker}</span><h1>${title}</h1><p class="muted">Beta draft. Last updated October 2026.</p></section><div class="prose">${html}</div></main>`,
+});
+
 PAGES.terms = () => legal("/terms", "Terms of Use", "Legal", `
 <p>These terms apply to the TEK CITY beta. By using TEK CITY you agree to them.</p>
 <h2>The service</h2><p>TEK CITY is a board-game interface for launching and buying Pump.fun coins on Solana. It is provided as-is during a public beta. Features and rules may change.</p>
