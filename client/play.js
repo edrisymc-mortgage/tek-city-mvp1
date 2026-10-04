@@ -38,7 +38,7 @@ function scheduleRefresh(delay = 250) { clearTimeout(pending); pending = setTime
 // ------------------------------------------------------------------ render
 function render() {
   if (!S.city) return;
-  renderTop(); renderAccount(); renderPlayer(); renderEvent(); renderBoard(); renderGoal(); renderVault(); renderLB(); renderMoods(); renderFeed(); renderMobile();
+  renderTop(); renderAccount(); renderPlayer(); renderBoard(); renderEvent(); renderGoal(); renderVault(); renderLB(); renderMoods(); renderFeed(); renderMobile();
   if (S.drawer !== null) renderDrawer();
   renderIcons();
 }
@@ -134,7 +134,15 @@ function renderEvent() {
       reason && S.me.signedIn ? h("p", { class: "mt12 small" }, reason) : null)));
 }
 
-function gridPos(i) { const row = Math.floor(i / 6); const col = row % 2 === 0 ? i % 6 : 5 - (i % 6); return { row: row + 1, col: col + 1 }; }
+// 7x7 loop board: 24 spaces around the edge, city center in the middle.
+// Stop 0 (Central Station) is the bottom-right corner; play runs clockwise: bottom row right->left, up the left side, across the top, down the right side.
+function gridPos(i) {
+  if (i <= 6) return { row: 7, col: 7 - i, side: "bottom" };
+  if (i <= 12) return { row: 7 - (i - 6), col: 1, side: "left" };
+  if (i <= 18) return { row: 1, col: 1 + (i - 12), side: "top" };
+  return { row: 1 + (i - 18), col: 7, side: "right" };
+}
+const CORNERS = new Set([0, 6, 12, 18]);
 
 function renderBoard() {
   const board = clear($("#board"));
@@ -147,54 +155,50 @@ function renderBoard() {
     const g = gridPos(s.id);
     const d = district(s.id);
     const hood = s.hood ? c.neighborhoods[s.hood] : null;
-    const cls = ["tile", d ? "" : `special ${s.type}`, s.id === target ? "target" : "", s.id === myPos ? "mine" : "", d && !d.next ? "complete" : ""].join(" ");
-    const players = (byPos.get(s.id) || []);
-    const tokens = h("div", { class: "tokens" },
-      players.slice(0, 5).map((p) => avatar(p.name, p.seed, S.me.signedIn && p.name === S.me.user.name && s.id === myPos ? "me" : "")),
-      players.length > 5 ? h("span", { class: "more" }, `+${players.length - 5}`) : null);
+    const cls = ["space", `side-${g.side}`, CORNERS.has(s.id) ? "corner" : "", d ? "prop" : `special ${s.type}`, s.id === target ? "target" : "", s.id === myPos ? "mine" : "", d && !d.next ? "complete" : ""].join(" ");
+    const players = (byPos.get(s.id) || []).filter((p) => !(S.me.signedIn && p.name === S.me.user.name));
     const tile = h("button", {
       class: cls, "data-stop": s.id, style: { "grid-row": g.row, "grid-column": g.col, ...(hood ? { "--hc": hood.color } : {}) },
       onclick: () => openDrawer(s.id), "aria-label": `${s.name}${d ? `, Level ${d.level}` : ""}`,
     },
-      d ? h("span", { class: "stripe" }) : null,
-      h("span", { class: "num" }, String(s.id).padStart(2, "0")),
+      d ? h("span", { class: "band" }, h("span", { class: "floors" }, [1, 2, 3, 4, 5].map((n) => h("i", { class: n <= d.level ? "on" : "" })))) : null,
       h("span", { class: "nm" }, s.name),
-      hood ? h("span", { class: "hd" }, hood.name) : h("span", { class: "hd" }, s.type === "desk" ? "Random dispatch" : s.type === "station" ? "Start · fare bonus" : s.type === "vault" ? "Shared reserve" : s.type === "workshop" ? "+Credits +Energy" : "+Influence"),
-      d ? h("span", { class: "foot" },
-        h("span", { class: "floors" }, [1, 2, 3, 4, 5].map((n) => h("i", { class: n <= d.level ? "on" : "" }))),
-        h("span", { class: "xp" }, h("i", { style: { width: d.next ? pct(d.xp, d.next) : "100%" } })))
-        : h("span", { class: "sic" }, icon(STOP_ICON[s.type] || "map-pin")),
-      tokens);
+      d ? h("span", { class: "lvl" }, `LV ${d.level}`) : h("span", { class: "sic" }, icon(STOP_ICON[s.type] || "map-pin")),
+      d ? h("span", { class: "xp" }, h("i", { style: { width: d.next ? pct(d.xp, d.next) : "100%" } })) : h("span", { class: "sub" }, s.type === "desk" ? "Dispatch" : s.type === "station" ? "GO · +25" : s.type === "vault" ? "Vault" : s.type === "workshop" ? "+20 · +1⚡" : "+5 Inf"),
+      h("span", { class: "tokens" }, players.slice(0, 4).map((p) => avatar(p.name, p.seed)), players.length > 4 ? h("span", { class: "more" }, `+${players.length - 4}`) : null));
     add(board, tile);
   }
-  add(board, transitLine());
-  requestAnimationFrame(drawLine);
+  // City center
+  const center = h("div", { class: "center" },
+    h("div", { class: "center-top" },
+      h("div", { class: "brand" }, h("span", { class: "kick" }, "Community board"), h("b", {}, "TEK CITY")),
+      h("div", { class: "dice-box" },
+        h("div", { class: "die", id: "die" }, pips(S.lastRoll || 0)),
+        h("button", { class: "btn btn-primary roll", id: "roll-btn", disabled: !S.me.signedIn || !!S.me.can.move || S.busy, onclick: () => act("move"), title: S.me.signedIn ? (S.me.can.move || "") : "Join to roll" }, icon("dice-5"), "Roll"),
+        h("small", { class: "roll-why" }, !S.me.signedIn ? "Join the city to roll" : S.me.can.move || "Costs 2 Energy · once per round"))),
+    h("div", { id: "event" }));
+  add(board, center);
+  // my token (animated separately)
+  if (S.me.signedIn) add(board, h("span", { class: "my-token", id: "my-token" }, avatar(S.me.user.name, S.me.user.seed, "me")));
+  requestAnimationFrame(() => placeToken(myPos, false));
   const legend = clear($("#legend"));
   for (const [k, n] of Object.entries(c.neighborhoods)) add(legend, h("span", { style: { "--hc": n.color } }, h("i"), `${n.name} · ${n.levels} lv`));
-  add(legend, h("span", { class: "muted" }, "Dotted line: Transit Line route"));
 }
 
-function transitLine() {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("class", "line"); svg.setAttribute("aria-hidden", "true");
-  svg.append(document.createElementNS("http://www.w3.org/2000/svg", "path"));
-  return svg;
+function pips(n) {
+  const layout = { 0: [], 1: [5], 2: [1, 9], 3: [1, 5, 9], 4: [1, 3, 7, 9], 5: [1, 3, 5, 7, 9], 6: [1, 3, 4, 6, 7, 9] }[n] || [];
+  return [1, 2, 3, 4, 5, 6, 7, 8, 9].map((k) => h("i", { class: layout.includes(k) ? "on" : "" }));
 }
-function drawLine() {
-  const board = $("#board"); const svg = $("svg.line", board); if (!svg) return;
-  const br = board.getBoundingClientRect();
-  const pts = $$(".tile", board).sort((a, b) => a.dataset.stop - b.dataset.stop).map((t) => {
-    const r = t.getBoundingClientRect(); return [r.left - br.left + r.width / 2, r.top - br.top + r.height / 2];
-  });
-  if (!pts.length) return;
-  svg.setAttribute("viewBox", `0 0 ${br.width} ${br.height}`);
-  const d = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(" ");
-  // Express Loop back to Central Station along the left edge
-  const last = pts[pts.length - 1], first = pts[0];
-  const x = -6;
-  $("path", svg).setAttribute("d", `${d} L${x} ${last[1].toFixed(1)} L${x} ${first[1].toFixed(1)} L${first[0].toFixed(1)} ${first[1].toFixed(1)}`);
+
+function placeToken(pos, animate = true) {
+  const tok = $("#my-token"); const board = $("#board");
+  if (!tok || pos === null || pos === undefined) return;
+  const t = $(`.space[data-stop="${pos}"]`, board); if (!t) return;
+  const br = board.getBoundingClientRect(), r = t.getBoundingClientRect();
+  tok.style.transition = animate ? "transform 170ms ease-out" : "none";
+  tok.style.transform = `translate(${r.left - br.left + r.width / 2 - 14}px, ${r.top - br.top + r.height / 2 - 6}px)`;
 }
-window.addEventListener("resize", () => requestAnimationFrame(drawLine));
+window.addEventListener("resize", () => requestAnimationFrame(() => placeToken(S.me.signedIn ? S.me.position : null, false)));
 
 function renderGoal() {
   const g = S.city.goal, c = S.city;
@@ -346,8 +350,8 @@ async function act(type, body = {}) {
   try {
     const r = await api.action(type, body);
     if (type === "move") {
+      await animatePath(r.path, r.roll);
       toast(r.message, "ok", { dice: r.roll, ms: 6000 });
-      await animatePath(r.path);
     } else if (type === "contribute") {
       toast(r.message, "gold");
       if (r.firstBadge) toast("Badge earned: First Brick", "gold");
@@ -361,11 +365,19 @@ async function act(type, body = {}) {
     await refreshAll();
   }
 }
-async function animatePath(path = []) {
+async function animatePath(path = [], roll) {
+  const die = $("#die");
+  if (die) {
+    die.classList.add("rolling");
+    for (let i = 0; i < 8; i++) { clear(die); add(die, pips(1 + Math.floor(Math.random() * 6))); await new Promise((r) => setTimeout(r, 70)); }
+    die.classList.remove("rolling"); clear(die); add(die, pips(roll));
+  }
+  S.lastRoll = roll;
   for (const id of path) {
-    const t = $(`.tile[data-stop="${id}"]`);
+    placeToken(id, true);
+    const t = $(`.space[data-stop="${id}"]`);
     if (t) { t.classList.remove("hop"); void t.offsetWidth; t.classList.add("hop"); }
-    await new Promise((r) => setTimeout(r, 160));
+    await new Promise((r) => setTimeout(r, 230));
   }
 }
 

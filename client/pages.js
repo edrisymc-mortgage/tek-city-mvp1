@@ -293,7 +293,6 @@ PAGES.play = () => layout({
     <section class="panel"><h3>Today's goal <span class="r" id="day-status"></span></h3><div id="goal-mini" class="muted small"></div></section>
   </aside>
   <section class="col-center">
-    <div id="event"></div>
     <div class="board-wrap"><div class="board" id="board"></div><div class="board-legend" id="legend"></div></div>
     <div class="goal" id="goal"></div>
     <div class="day-banner" id="day-banner"></div>
