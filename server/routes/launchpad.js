@@ -58,7 +58,7 @@ function build(config, { notify }) {
   r.get("/launchpad/info", limit("api_read", ipKey), wrap(async (_req, res) => {
     res.json({
       enabled: L.enabled, minBuyLamports: L.minBuyLamports, maxBuyLamports: L.maxBuyLamports, launcherBps: L.launcherBps,
-      split: !!rewards.poolAddress(), spinToken: config.spins.mint || null, tokensPerSpin: config.spins.tokensPerSpin,
+      split: !!rewards.poolAddress(), ready: { images: !!config.launchpad.pinataJwt, token: !!config.spins.mint }, spinToken: config.spins.mint || null, tokensPerSpin: config.spins.tokensPerSpin,
       rewards: await rewards.summary(),
       milestones: await milestones.summary(),
       coins: (await db.query(`SELECT COUNT(*)::int AS n, COALESCE(SUM(grown_lamports),0)::bigint AS l FROM space_coins`)).rows[0],

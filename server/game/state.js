@@ -18,7 +18,7 @@ async function cityState() {
     db.query(`SELECT * FROM game_rounds WHERE status = 'open' ORDER BY id DESC LIMIT 1`),
     db.query(`SELECT id, slug, name, neighborhood, level, xp FROM districts ORDER BY id`),
     db.query(`SELECT progress, milestone, lifetime FROM community_vault WHERE id = 1`),
-    db.query(`SELECT at, kind, text FROM city_activity ORDER BY id DESC LIMIT 30`),
+    db.query(CFG.launchpad.enabled ? `SELECT at, kind, text FROM city_activity WHERE kind IN ('join','move','grow','launch','takeover','jackpot','reward','milestone') ORDER BY id DESC LIMIT 30` : `SELECT at, kind, text FROM city_activity ORDER BY id DESC LIMIT 30`),
     db.query(`SELECT u.display_name AS name, u.kind, pr.influence_today AS influence FROM player_resources pr JOIN users u ON u.id = pr.user_id
                WHERE pr.influence_day = $1 AND pr.influence_today > 0 AND NOT u.is_banned ORDER BY pr.influence_today DESC, u.created_at LIMIT 10`, [isoDay(cs.day)]),
     db.query(`SELECT u.display_name AS name, u.kind, pr.influence FROM player_resources pr JOIN users u ON u.id = pr.user_id
