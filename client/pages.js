@@ -267,7 +267,7 @@ PAGES.play = () => layout({
   <div class="chips" id="chips">
     <div class="chip"><span class="lbl">TEK CITY mcap</span><span class="val" id="c-mcap">--</span></div>
     <div class="chip"><span class="lbl">Players</span><span class="val" id="c-players">--</span></div>
-    <div class="chip"><span class="lbl">Next payout</span><span class="val" id="c-next">--:--</span></div>
+    <div class="chip"><span class="lbl">Next round</span><span class="val" id="c-next">--:--</span></div>
     <div class="chip" id="countdown-box"><span class="lbl">Round ends</span><span class="val" id="countdown" aria-live="off">--:--</span></div>
   </div>
   <div class="top-right" id="top-right"><div id="account-slot"></div></div>
