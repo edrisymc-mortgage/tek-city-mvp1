@@ -12,7 +12,8 @@ const { fail } = require("../security/util");
 let CFG = null;
 function configure(config) { CFG = config; }
 const enabled = () => !!(CFG && CFG.spins.mint && CFG.spins.mode === "bought");
-const holderMode = () => !!(CFG && CFG.spins.mint && CFG.spins.mode !== "bought");
+const holderMode = () => !!(CFG && CFG.spins.mint && CFG.spins.mode === "holder");
+const ownedMode = () => !!(CFG && CFG.spins.mint && CFG.spins.mode === "owned");
 
 const FEE_SLACK = 100000; // lamports: more than any normal tx fee + priority fee
 const lastScan = new Map(); // wallet -> ms
@@ -126,6 +127,26 @@ async function requireHolder(userId) {
   return h;
 }
 
+// Owned mode: each round, 1 spin per TOKENS_PER_SPIN held across the player's signed-in wallets and verified
+// pump.fun profile (read-only). Balances are read from Solana on the server, never from the browser.
+async function ownedStatus(userId, { fresh = false } = {}) {
+  if (!ownedMode()) return null;
+  const per = CFG.spins.tokensPerSpin;
+  const signed = await signedWallets(userId);
+  const wallets = await walletsFor(userId);
+  let balance = 0;
+  for (const w of wallets) { if (fresh) sol.bustBalance(w, CFG.spins.mint); balance += await sol.tokenBalance(w, CFG.spins.mint); }
+  return { owned: true, wallet: signed[0] || null, wallets, balance, allowance: Math.floor(balance / per), tokensPerSpin: per, mint: CFG.spins.mint, starter: CFG.spins.starterSpins };
+}
+async function requireOwned(userId) {
+  if (!ownedMode()) return null;
+  let o;
+  try { o = await ownedStatus(userId, { fresh: true }); }
+  catch { fail(503, "rpc_error", "Couldn't check your TEK CITY balance on Solana right now. Try again in a moment."); }
+  if (!o.wallet) fail(403, "wallet_required", "Connect a Solana wallet to spin.");
+  return o;
+}
+
 function bust(wallet) { if (wallet) { lastScan.delete(wallet); if (CFG && CFG.spins.mint) sol.bustBalance(wallet, CFG.spins.mint); } }
 
-module.exports = { configure, enabled, holderMode, holderStatus, requireHolder, status, requireSpin, bust, isBuy };
+module.exports = { configure, enabled, holderMode, ownedMode, ownedStatus, requireOwned, holderStatus, requireHolder, status, requireSpin, bust, isBuy };

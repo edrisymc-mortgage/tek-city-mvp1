@@ -90,6 +90,12 @@ function build(config, { notify, noScheduler = false }) {
       milestones: await milestones.summary(),
       coins: (await db.query(`SELECT COUNT(*)::int AS n, COALESCE(SUM(grown_lamports),0)::bigint AS l FROM space_coins`)).rows[0],
       spaces: COIN_STOPS.size,
+      vault: await (async () => {
+        const V = config.vault; const last = (await db.query(`SELECT hit_at FROM vault_hits ORDER BY hit_at DESC LIMIT 1`)).rows[0];
+        const nextAt = last ? new Date(new Date(last.hit_at).getTime() + V.cooldownHours * 3600e3) : null;
+        return { cooldownHours: V.cooldownHours, spins: V.spins, lastHitAt: last ? last.hit_at : null, ready: !nextAt || nextAt <= new Date(), nextAt: nextAt && nextAt > new Date() ? nextAt : null };
+      })(),
+      spinMode: config.spins.mint ? config.spins.mode : "per_round", starterSpins: config.spins.starterSpins,
       players: (await db.query(`SELECT COUNT(DISTINCT user_id)::int AS n FROM wallet_accounts WHERE unlinked_at IS NULL`)).rows[0].n,
     });
   }));

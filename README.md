@@ -7,7 +7,7 @@ A 3D board game launchpad for Pump.fun coins on Solana. Node.js + Express + Post
 ## How it plays
 - 24-space loop board. START and the Vault are fixed; the other spaces each hold one Pump.fun coin.
 - Playing needs a connected Solana wallet (Phantom, Solflare, Backpack or any Wallet Standard wallet). Without one, visitors watch.
-- 1 free spin per round per wallet. With `OFFICIAL_TOKEN_MINT` set and `SPIN_MODE=holder`, the wallet must hold `TOKENS_PER_SPIN` (500,000) tokens, re-checked on the server for every spin. Passing START or landing on the Vault: +1 spin. Market-cap milestones ($100K, $1M, $8M, $32M, $100M) grant bonus spins to every player. Milestones never move SOL or tokens.
+- Spins (`SPIN_MODE=owned`, default): every player gets 1 free starter spin. Once `OFFICIAL_TOKEN_MINT` is set, each 15-minute round a player gets 1 spin per `TOKENS_PER_SPIN` (500,000) TEK CITY owned, summed across their signed-in wallets and their verified pump.fun profile (bio-code link, read-only, `FEATURE_PUMP_BIO_LINK=true`). Balances are read on the server for every spin. Passing START: +1. The Vault jackpot (+`VAULT_JACKPOT_SPINS`) can be hit once every `VAULT_COOLDOWN_HOURS` (12) across the whole board. Milestones ($100K, $1M, $8M, $32M, $100M) grant bonus spins to every player. Nothing here moves SOL or tokens. Before the mint is set, every wallet gets 1 spin per round.
 - Empty space: launch a coin on Pump.fun. Taken space: buy into it with SOL, or take it over with a first buy at least as large as its biggest buy-in.
 
 ## Money flow

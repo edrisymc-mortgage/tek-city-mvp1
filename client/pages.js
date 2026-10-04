@@ -82,7 +82,7 @@ PAGES.index = () => layout({
   <section class="wrap section">
     <div class="sec-head"><span class="kicker">How it works</span><h2>Three moves.</h2></div>
     <div class="steps3">
-      <article><span class="n">01</span><h3>Spin</h3><p>Connect a Solana wallet and your first spin is free. After that, every 500,000 TEK CITY you buy earns 1 more. Passing START earns another. The server rolls the die.</p></article>
+      <article><span class="n">01</span><h3>Spin</h3><p>Connect a Solana wallet and your first spin is free. After that, every 500,000 TEK CITY you own earns 1 spin each round. Passing START earns another. The server rolls the die.</p></article>
       <article><span class="n">02</span><h3>Launch or grow</h3><p>Empty space: launch your coin on Pump.fun right from the board. Taken space: buy into that coin, or take the space with a bigger first buy.</p></article>
       <article><span class="n">03</span><h3>Keep what you launch</h3><p>You pay your own launch from your own wallet and keep your coin's creator rewards. TEK CITY takes no cut of your launch, your buys or your rewards.</p></article>
     </div>
@@ -93,8 +93,9 @@ PAGES.index = () => layout({
     <table class="rules">
       <tbody>
         <tr><th>First spin</th><td>Free for every connected wallet</td></tr>
-        <tr><th>More spins</th><td>+1 for every 500,000 TEK CITY you buy</td></tr>
-        <tr><th>Passing START or landing on the Vault</th><td>+1 free spin</td></tr>
+        <tr><th>More spins</th><td>1 per round for every 500,000 TEK CITY you own</td></tr>
+        <tr><th>Passing START</th><td>+1 free spin</td></tr>
+        <tr><th>Vault jackpot</th><td>+1 bonus spin, hit once every 12 hours across the board</td></tr>
         <tr><th>Launch cost</th><td>Paid from your wallet to Pump.fun. TEK CITY fee: 0%</td></tr>
         <tr><th>Your coin's creator rewards</th><td>100% yours</td></tr>
         <tr><th>Taking over a space</th><td>First buy at least the space's biggest buy-in</td></tr>
@@ -138,9 +139,11 @@ PAGES["how-it-works"] = () => layout({
   <h2>Spins</h2>
   <ul>
     <li><b>First spin:</b> free for every connected wallet.</li>
-    <li><b>Buy TEK CITY:</b> every 500,000 TEK CITY you buy earns 1 more spin. Only real buys count: on-chain purchases your own wallet signed and paid for. Tokens sent to you from another wallet don't. Checked on the server.</li>
+    <li><b>Own TEK CITY:</b> every round, you get 1 spin for every 500,000 TEK CITY you own. We add up your connected wallet and your linked pump.fun profile, read from Solana on the server.</li>
+    <li><b>Bought on pump.fun with email or X?</b> Link your pump.fun profile in the board's side panel by adding a short code to your bio. It's read-only: TEK CITY can't move anything in it.</li>
     <li><b>Before the TEK CITY token is live:</b> 1 free spin per round for every connected wallet.</li>
-    <li><b>Pass START or land on the Vault:</b> +1 free spin.</li>
+    <li><b>Pass START:</b> +1 free spin.</li>
+    <li><b>Vault jackpot:</b> +1 bonus spin. It can be hit once every 12 hours across the whole board.</li>
     <li><b>Milestones:</b> bonus spins for every player when TEK CITY reaches a market cap. See <a href="/milestones">Milestones</a>.</li>
   </ul>
   <p>The server rolls the die. Your browser only shows the result.</p>
@@ -154,6 +157,7 @@ PAGES["how-it-works"] = () => layout({
   </ul>
   <h2>pump.fun accounts</h2>
   <p>pump.fun is a venue, not a wallet. Use a Solana wallet you control, such as Phantom, Solflare, or Backpack. SOL and tokens are available when they are held by the wallet you connect. If you log into pump.fun with that same wallet, your pump.fun profile shows up automatically.</p>
+  <p>Signed up on pump.fun with email or X? You still connect a Solana wallet to play, then link your pump.fun profile: paste the profile link, add the code we show you to your pump.fun bio, and verify. TEK CITY then reads that profile's TEK CITY balance for your spins. It never asks for that wallet's key and can't move anything in it.</p>
   <p class="muted small">TEK CITY tokens provide game utility only. They do not provide equity, dividends, revenue share, profit rights, ownership of Community Fund assets, or guaranteed financial returns.</p>
   </div></main>`,
 });

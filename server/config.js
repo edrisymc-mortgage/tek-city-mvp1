@@ -101,10 +101,13 @@ function load(env = process.env) {
       tokensPerSpin: int(env.TOKENS_PER_SPIN, 500_000),
       // "holder": with OFFICIAL_TOKEN_MINT set, 1 free spin per round only while the wallet holds >= TOKENS_PER_SPIN.
       // "bought": 1 spin per TOKENS_PER_SPIN bought (on-chain buys signed by the player's wallet).
-      mode: env.SPIN_MODE === "holder" ? "holder" : "bought",
-      // first spin free for every wallet (bought mode)
+      // "owned" (default): 1 free starter spin per player, then each round 1 spin per TOKENS_PER_SPIN owned
+      // (connected wallets + verified pump.fun profile), plus bonus spins.
+      mode: ["holder", "bought"].includes(env.SPIN_MODE) ? env.SPIN_MODE : "owned",
+      // first spin free for every player ("owned" and "bought" modes)
       starterSpins: Math.max(0, int(env.STARTER_SPINS, 1)),
     },
+    vault: { cooldownHours: Math.max(0, int(env.VAULT_COOLDOWN_HOURS, 12)), spins: Math.max(0, int(env.VAULT_JACKPOT_SPINS, 1)) },
     officialTokenMint: env.OFFICIAL_TOKEN_MINT || "",
     official: {
       x: env.OFFICIAL_X_URL || "",

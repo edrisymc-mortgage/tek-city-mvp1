@@ -64,7 +64,8 @@ export function renderCoinSection(body, S, s, ctx) {
   const wrap = h("div", { class: "coin-sec" });
   add(body, wrap);
   if (s.type === "station") { add(wrap, h("p", { class: "small ink2" }, "START. Every time you pass or land here you get a free spin.")); return; }
-  if (s.type === "vault") add(wrap, h("div", { class: "jackpot-note" }, icon("vault"), h("span", {}, h("b", {}, "Bonus spin. "), "Land here on a spin for +1 free spin.")));
+  const VV = S.lpInfo && S.lpInfo.vault;
+  if (s.type === "vault") add(wrap, h("div", { class: "jackpot-note" }, icon("vault"), h("span", {}, h("b", {}, "Vault jackpot. "), (VV && !VV.ready && VV.nextAt) ? `Already hit. Opens again at ${new Date(VV.nextAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.` : `Land here for +${(VV && VV.spins) || 1} bonus spin. Can be hit once every ${(VV && VV.cooldownHours) || 12} hours across the whole board.`)));
 
   if (coin) {
     add(wrap, h("div", { class: "coin-card" },
@@ -167,7 +168,7 @@ export function renderSpins(el, S, ctx) {
       h("div", {}, h("span", { class: "k" }, "Bonus spins"), h("div", { class: "v" }, String((sp && sp.bonus) || 0)))));
   }
   add(el,
-    h("p", {}, sp.enabled ? `1 free spin for every ${fmtN(per)} TEK CITY you buy, plus 1 every time you pass START.` : sp.holder ? `Wallets holding ${fmtN(per)}+ TEK CITY get 1 free spin each 15-minute round, plus 1 every time they pass START.` : "1 free spin each 15-minute round, plus 1 every time you pass START."),
+    h("p", {}, sp.owned ? `Your first spin is free. Then every round you get 1 spin for every ${fmtN(per)} TEK CITY you own (connected wallet + linked pump.fun profile). You own ${fmtN(sp.balance)} = ${sp.allowance} per round. Passing START: +1.` : sp.enabled ? `Your first spin is free. Then 1 spin for every ${fmtN(per)} TEK CITY you buy, plus 1 every time you pass START.` : sp.holder ? `Wallets holding ${fmtN(per)}+ TEK CITY get 1 free spin each 15-minute round, plus 1 every time they pass START.` : "1 free spin each 15-minute round, plus 1 every time you pass START."),
     h("button", { class: "btn btn-primary spin-btn", disabled: !!m.can.move || S.busy, onclick: () => ctx.act("move") }, icon("dice-5"), "Spin"),
     m.can.move ? h("p", { class: "small" }, m.can.move) : null,
     !m.user.wallet ? h("button", { class: "btn btn-ghost", onclick: ctx.linkWallet }, icon("wallet"), "Connect Solana Wallet") : null,
@@ -208,7 +209,7 @@ export async function renderPump(el, S, ctx, fresh = false) {
     return;
   }
   const input = h("input", { class: "txt", placeholder: "pump.fun/profile/… or wallet address", autocomplete: "off" });
-  add(el, h("p", { class: "small mb0" }, "Signed up on pump.fun with email or X? Paste your profile link so your TEK CITY buys count."), input,
+  add(el, h("p", { class: "small mb0" }, "Buy TEK CITY on pump.fun with an email or X login? Paste your pump.fun profile link and add a short code to your bio. Buys from that pump.fun wallet then count toward your spins. Read-only: TEK CITY can't move anything in it."), input,
     h("button", { class: "btn btn-ghost btn-sm", onclick: async (e) => { e.target.disabled = true; try { const r = await api.post("/api/pump/link/start", { address: input.value }); S.pump = { linked: false, pending: { address: r.address, code: r.code } }; renderPump(el, S, ctx); } catch (er) { status.textContent = er.message; e.target.disabled = false; } } }, "Link pump.fun"), status);
 }
 
@@ -243,8 +244,9 @@ export function renderRewards(el, info) {
   add(el,
     h("ul", { class: "pool-rules" },
       h("li", {}, h("span", {}, "First spin"), h("b", {}, "Free")),
-      h("li", {}, h("span", {}, `Every ${per} TEK CITY bought`), h("b", {}, info.spinToken ? "+1 spin" : "When token is live")),
-      h("li", {}, h("span", {}, "Pass START or land on the Vault"), h("b", {}, "+1 spin")),
+      h("li", {}, h("span", {}, `Every ${per} TEK CITY owned`), h("b", {}, info.spinToken ? "+1 spin each round" : "When token is live")),
+      h("li", {}, h("span", {}, "Pass START"), h("b", {}, "+1 spin")),
+      h("li", {}, h("span", {}, "Vault jackpot (once per 12h)"), h("b", {}, info.vault && !info.vault.ready && info.vault.nextAt ? `Next ${new Date(info.vault.nextAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "Ready")),
       h("li", {}, h("span", {}, "TEK CITY fee on launches"), h("b", {}, "0%"))),
     h("p", { class: "small mb0" }, "TEK CITY tokens provide game utility only. They do not provide equity, dividends, revenue share, profit rights, ownership of Community Fund assets, or guaranteed financial returns."));
 }

@@ -241,42 +241,71 @@ async function doMove({ c, round, p, userId, actionId, today, hoods, ds, name, s
   return { roll, from, to: pos, path, stop: { id: pos, name: stop.name, type: stop.type }, gained, notes, message: notes.join(". ") || `Rode to ${stop.name}.` };
 }
 
-// Spin mode (TEK CITY holders): each roll spends one free spin. No game credits are involved.
+// Spin mode: each roll spends one free spin. No game credits are involved.
+//   owned:    this round's allowance (1 per TOKENS_PER_SPIN owned), then the one-time starter spin, then bonus spins
+//   perRound: 1 free spin per round (before the token is live / holder mode), then bonus spins
+//   bought:   1 per TOKENS_PER_SPIN bought + starter + bonus (cumulative)
 async function doSpinMove({ c, round, p, userId, name, spin }) {
-  // Per-round mode: one free spin per round, plus any bonus spins earned by passing START.
-  let useBonus = false;
-  if (spin.perRound && String(p.last_move_round) === String(round.id)) {
-    if ((p.bonus_left || 0) > 0) useBonus = true;
+  const rid = String(round.id);
+  let use = null; // "round" | "starter" | "bonus" | "perRound" | "bought"
+  if (spin.owned) {
+    const roundUsed = String(p.round_spins_round) === rid ? p.round_spins_used : 0;
+    const starterLeft = Math.max(0, (spin.starter || 0) - (p.starter_used || 0));
+    if (roundUsed < spin.allowance) use = "round";
+    else if (starterLeft > 0) use = "starter";
+    else if ((p.bonus_left || 0) > 0) use = "bonus";
+    else fail(409, "no_spins", spin.allowance > 0
+      ? `You've used this round's ${spin.allowance} spin${spin.allowance === 1 ? "" : "s"}. More at the next round, or pass START for a bonus spin.`
+      : `No spins left. Every ${spin.tokensPerSpin.toLocaleString()} TEK CITY you own = 1 spin each round.`);
+  } else if (spin.perRound) {
+    if (String(p.last_move_round) !== rid) use = "perRound";
+    else if ((p.bonus_left || 0) > 0) use = "bonus";
     else fail(409, "already_moved", "You've used this round's free spin. Pass START or wait for the next round.");
+  } else {
+    if (p.spins_used >= spin.earned) fail(409, "no_spins", "No spins left. Buy more TEK CITY or pass START for more spins.");
+    use = "bought";
   }
-  if (!spin.perRound && p.spins_used >= spin.earned) fail(409, "no_spins", "No spins left. Buy more TEK CITY or pass START for more spins.");
   const roll = rnd(6) + 1;
   const from = p.position, path = [];
   let pos = from;
   for (let i = 0; i < roll; i++) { pos = (pos + 1) % STOPS.length; path.push(pos); }
   const passedGo = path.includes(0);
   const stop = STOPS[pos];
-  const bonus = (passedGo ? 1 : 0) + (stop.type === "vault" ? 1 : 0);
-  if (spin.perRound) {
-    await c.query(
-      `UPDATE player_resources SET position = $2, last_move_round = $3, visited_round = $3,
-         bonus_left = bonus_left - $4 + $5, bonus_total = bonus_total + $5 WHERE user_id = $1`,
-      [userId, pos, round.id, useBonus ? 1 : 0, bonus]);
-  } else {
-    await c.query(
-      `UPDATE player_resources SET position = $2, spins_used = spins_used + 1, visited_round = $3,
-         bonus_total = bonus_total + $4 WHERE user_id = $1`, [userId, pos, round.id, bonus]);
+  // The Vault jackpot can be hit once per VAULT_COOLDOWN_HOURS across the whole board (serialized by an advisory lock).
+  let vault = null;
+  if (stop.type === "vault") {
+    const V = CFG.vault || { cooldownHours: 12, spins: 1 };
+    await c.query(`SELECT pg_advisory_xact_lock(7104)`);
+    const last = (await c.query(`SELECT hit_at FROM vault_hits ORDER BY hit_at DESC LIMIT 1`)).rows[0];
+    const nextAt = last ? new Date(new Date(last.hit_at).getTime() + V.cooldownHours * 3600e3) : null;
+    if (!nextAt || nextAt <= new Date()) {
+      await c.query(`INSERT INTO vault_hits (user_id, round_id, spins) VALUES ($1,$2,$3)`, [userId, round.id, V.spins]);
+      vault = { hit: true, spins: V.spins };
+    } else vault = { hit: false, nextAt };
   }
+  const bonus = (passedGo ? 1 : 0) + (vault && vault.hit ? vault.spins : 0);
+  await c.query(
+    `UPDATE player_resources SET position = $2, visited_round = $3,
+       last_move_round = CASE WHEN $4 IN ('perRound','bonus','round','starter') THEN $3 ELSE last_move_round END,
+       round_spins_used = CASE WHEN $4 = 'round' THEN (CASE WHEN round_spins_round = $3 THEN round_spins_used ELSE 0 END) + 1 ELSE round_spins_used END,
+       round_spins_round = CASE WHEN $4 = 'round' THEN $3 ELSE round_spins_round END,
+       starter_used = starter_used + CASE WHEN $4 = 'starter' THEN 1 ELSE 0 END,
+       spins_used = spins_used + CASE WHEN $4 = 'bought' THEN 1 ELSE 0 END,
+       bonus_left = bonus_left - CASE WHEN $4 = 'bonus' THEN 1 ELSE 0 END + CASE WHEN $4 = 'bought' THEN 0 ELSE $5 END,
+       bonus_total = bonus_total + $5
+     WHERE user_id = $1`,
+    [userId, pos, round.id, use, bonus]);
   const coin = (await c.query(`SELECT name, symbol FROM space_coins WHERE stop_id = $1`, [pos])).rows[0];
   const label = stop.type === "vault" ? "the Vault" : stop.type === "station" ? "START" : coin ? `$${coin.symbol}` : `space ${pos}`;
-  await activity(c, "move", `${name} spun a ${roll} and landed on ${label}.${passedGo ? " Passed START: +1 free spin." : ""}`);
+  await activity(c, "move", `${name} spun a ${roll} and landed on ${label}.${passedGo ? " Passed START: +1 free spin." : ""}${vault && vault.hit ? ` Hit the Vault jackpot: +${vault.spins} spin${vault.spins === 1 ? "" : "s"}.` : ""}`);
   const notes = [];
   if (passedGo) notes.push("Passed START: +1 free spin.");
-  if (stop.type === "vault") notes.push("Community Vault: +1 bonus spin.");
+  if (vault && vault.hit) notes.push(`Vault jackpot: +${vault.spins} bonus spin${vault.spins === 1 ? "" : "s"}. The next jackpot opens in ${(CFG.vault || { cooldownHours: 12 }).cooldownHours} hours.`);
+  else if (vault) notes.push(`The Vault jackpot was already hit. It opens again ${vault.nextAt.toISOString().slice(11, 16)} UTC.`);
   else if (stop.type === "station") notes.push("You're on START. Spin again.");
   else if (coin) notes.push(`You're on ${coin.name} ($${coin.symbol}). Buy in to grow it, or take the space over.`);
   else notes.push(`Space ${pos} is empty. Launch your coin here.`);
-  const left = spin.perRound ? (p.bonus_left || 0) - (useBonus ? 1 : 0) + bonus : spin.earned + bonus - p.spins_used - 1;
+  const left = null; // the client refreshes /api/me for the exact count
   return { roll, from, to: pos, path, passedGo, stop: { id: pos, name: label, type: stop.type }, gained: {}, notes, spinsLeft: left, message: notes.join(" ") };
 }
 

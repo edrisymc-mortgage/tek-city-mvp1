@@ -202,6 +202,7 @@ function build(config, { notify }) {
     const payload = v.obj(req.body || {}, SHAPES[type]);
     const key = v.idempotencyKey(req);
     let spin = type === "move" ? await spins.requireSpin(req.session.user_id) : null;
+    if (!spin && type === "move" && spins.ownedMode()) spin = await spins.requireOwned(req.session.user_id);
     if (!spin && type === "move" && config.launchpad.enabled) {
       const h = await spins.requireHolder(req.session.user_id); // null unless OFFICIAL_TOKEN_MINT is set (holder mode)
       spin = { perRound: true, earned: Number.MAX_SAFE_INTEGER, wallet: h ? h.wallet : null, holder: h };

@@ -123,10 +123,19 @@ async function me(session) {
   const why = (cond, reason) => (cond ? null : reason);
   const sp = await spins.status(uid).catch(() => ({ enabled: false }));
   const hold = await spins.holderStatus(uid).catch(() => null);
+  const own = await spins.ownedStatus(uid).catch(() => null);
+  let ownSp = null;
+  if (own) {
+    const roundUsed = String(p.round_spins_round) === rid ? p.round_spins_used : 0;
+    const roundLeft = Math.max(0, own.allowance - roundUsed), starterLeft = Math.max(0, (own.starter || 0) - (p.starter_used || 0));
+    ownSp = { ...own, enabled: false, perRound: true, roundLeft, starterLeft, bonusLeft: p.bonus_left || 0, bonus: p.bonus_total || 0, left: roundLeft + starterLeft + (p.bonus_left || 0) };
+  }
   const general = paused ? "The city is paused for maintenance." : closed ? "This round is closing. The next one opens in a moment." : null;
   const can = {
     checkin: general || why(String(p.last_checkin_round) !== rid, "Already checked in this round."),
-    move: sp.enabled
+    move: ownSp
+      ? general || why(!!ownSp.wallet, "Connect a Solana wallet to spin.") || why(ownSp.left > 0, ownSp.allowance > 0 ? "This round's spins are used. More at the next round." : `No spins left. Every ${ownSp.tokensPerSpin.toLocaleString()} TEK CITY you own = 1 spin each round.`)
+      : sp.enabled
       ? general || why(!!sp.wallet, "Link your wallet to spin.") || why(sp.left > 0, `No spins left. Buy ${sp.tokensPerSpin.toLocaleString()} TEK CITY or pass START for another.`)
       : CFG.launchpad.enabled ? general || (hold ? why(!!hold.wallet, "Connect a Solana wallet to spin.") || why(hold.eligible, `Free spins need ${hold.required.toLocaleString()} TEK CITY in your wallet.`) : null) || why(String(p.last_move_round) !== rid || (p.bonus_left || 0) > 0, "Free spin used. Next one at the tick.")
       : general || why(String(p.last_move_round) !== rid, "Already moved this round.") || why(p.energy >= RULES.moveCost, `Needs ${RULES.moveCost} Energy.`),
@@ -145,7 +154,7 @@ async function me(session) {
     onSite: String(p.visited_round) === rid ? p.position : null,
     contributionsLeft: RULES.contributionsPerRound - contribCount,
     tutorialDone: p.tutorial_done,
-    spins: sp.enabled ? sp : { ...sp, perRound: true, holder: hold, left: ((!hold || hold.eligible) && String(p.last_move_round) !== rid ? 1 : 0) + (p.bonus_left || 0), bonus: p.bonus_total || 0 },
+    spins: ownSp ? ownSp : sp.enabled ? sp : { ...sp, perRound: true, holder: hold, left: ((!hold || hold.eligible) && String(p.last_move_round) !== rid ? 1 : 0) + (p.bonus_left || 0), bonus: p.bonus_total || 0 },
     badges: bR.rows,
     can,
     csrf: session.csrf_token,
