@@ -178,3 +178,4 @@ table.simple th, table.simple td { text-align: left; padding: 12px 8px; border-b
 table.simple th { font: 500 12px var(--font-mono); text-transform: uppercase; letter-spacing: .05em; color: var(--text3); }
 .mt8 { margin-top: 8px; } .mt12 { margin-top: 12px; } .mt16 { margin-top: 16px; } .mt32 { margin-top: 32px; } .mt64 { margin-top: 64px; } .mb0 { margin-bottom: 0; }
 .ink2 { color: var(--text2); }
+.nav a.btn-primary, .nav a.btn-primary:hover { color: var(--primary-ink); padding: 7px 12px; }
