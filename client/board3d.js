@@ -213,9 +213,9 @@ export class Board3D {
   // Frame the whole board for the current aspect ratio (keeps every edge space on screen).
   fit() {
     const cam = this.camera, a = cam.aspect || 1;
-    const elev = (a < 0.95 ? 64 : 52) * Math.PI / 180;
+    const elev = (this.mobile ? 66 : 52) * Math.PI / 180;
     const vt = Math.tan((cam.fov * Math.PI) / 360), ht = vt * a;
-    const d = Math.max(4.15 / ht, 3.55 / vt) + 2.2;
+    const d = Math.max(4.1 / ht, (this.mobile ? 3.2 : 3.55) / vt) + (this.mobile ? 1.4 : 2.2);
     cam.position.set(0, Math.sin(elev) * d, Math.cos(elev) * d + 0.35);
     cam.lookAt(0, 0, 0.35);
     if (this.controls) { this.controls.target.set(0, 0, 0.35); this.controls.update(); }

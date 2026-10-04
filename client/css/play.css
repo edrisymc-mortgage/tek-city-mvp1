@@ -356,4 +356,4 @@ body.play { background: var(--g950); }
 .board3d .stage { bottom: 64px; }
 .hud3d { bottom: 10px; }
 .board3d { aspect-ratio: 1 / 0.9; }
-@media (max-width: 900px) { .board3d { aspect-ratio: 1 / 1.12; } .board3d .stage { bottom: 54px; } .hud3d { bottom: 8px; } }
+@media (max-width: 900px) { .board3d { aspect-ratio: 1 / 1.02; } .board3d .stage { bottom: 54px; } .hud3d { bottom: 8px; } }
