@@ -129,8 +129,8 @@ export class Board3D {
     const scene = this.scene = new THREE.Scene();
     const cam = this.camera = new THREE.PerspectiveCamera(36, w / h, 0.1, 100);
     this.mobile = window.matchMedia("(max-width: 900px)").matches;
-    cam.position.set(0, this.mobile ? 13.5 : 10.5, this.mobile ? 6.5 : 8.6);
-    cam.lookAt(0, 0, 0.3);
+    cam.position.set(0, this.mobile ? 11.6 : 8.4, this.mobile ? 5.2 : 6.9);
+    cam.lookAt(0, 0, 0.55);
 
     scene.add(new THREE.HemisphereLight(0xfff4dc, 0x0b2318, 1.1));
     const sun = new THREE.DirectionalLight(0xffe7b8, 2.2);
@@ -172,7 +172,7 @@ export class Board3D {
     // Controls: drag to rotate on desktop; fixed camera on touch so page scrolling works
     this.controls = new OrbitControls(cam, r.domElement);
     Object.assign(this.controls, { enablePan: false, enableDamping: true, dampingFactor: 0.08, minDistance: 7, maxDistance: 18, minPolarAngle: 0.25, maxPolarAngle: 1.15, rotateSpeed: 0.6 });
-    this.controls.target.set(0, 0, 0.3);
+    this.controls.target.set(0, 0, 0.55);
     if (this.mobile) { this.controls.enabled = false; r.domElement.style.touchAction = "pan-y"; }
 
     this.ray = new THREE.Raycaster(); this.ptr = new THREE.Vector2(); this.down = null;
@@ -237,7 +237,7 @@ export class Board3D {
     for (const [pos, ps] of byPos) {
       const c = worldOf(pos);
       ps.slice(0, 6).forEach((p, i) => {
-        const t = pawn(this.colorFor(p.seed || p.name), 0.55);
+        const t = pawn(this.colorFor(p.seed || p.name), 0.75);
         const a = (i / Math.min(6, ps.length)) * Math.PI * 2;
         t.position.set(c.x - 0.25 + Math.cos(a) * 0.12, TILE_H + 0.01, c.z + 0.22 + Math.sin(a) * 0.08);
         this.scene.add(t); this.others.push(t);
@@ -246,7 +246,7 @@ export class Board3D {
     // me
     if (me.signedIn) {
       const col = this.colorFor(me.user.seed || me.user.name);
-      if (!this.me || this.myColor !== col) { if (this.me) this.scene.remove(this.me); this.me = pawn(col, 1, true); this.myColor = col; this.scene.add(this.me); this.myPos = null; }
+      if (!this.me || this.myColor !== col) { if (this.me) this.scene.remove(this.me); this.me = pawn(col, 1.35, true); this.myColor = col; this.scene.add(this.me); this.myPos = null; }
       if (this.myPos === null || (!this.moving && this.myPos !== me.position)) { this.placeMe(me.position); }
     } else if (this.me) { this.scene.remove(this.me); this.me = null; }
   }
@@ -278,24 +278,24 @@ export class Board3D {
     const col = new THREE.Color(hood.color);
     const mat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.55, metalness: 0.1 });
     const glass = new THREE.MeshStandardMaterial({ color: 0xfff1c9, emissive: 0xffd77a, emissiveIntensity: 0.35, roughness: 0.3 });
-    const slots = [[-0.22, -0.2], [0.2, -0.22], [-0.24, 0.12], [0.02, -0.02], [0.24, 0.1]];
+    const slots = [[-0.3, -0.06], [0.3, -0.06], [-0.1, -0.12], [0.1, -0.12], [0, 0.02]];
     for (let n = 0; n < district.level; n++) {
-      const hgt = 0.14 + n * 0.09 + (n === 3 ? 0.12 : 0);
-      const b = new THREE.Mesh(new THREE.BoxGeometry(0.2, hgt, 0.2), mat);
+      const hgt = 0.22 + n * 0.12 + (n === 3 ? 0.14 : 0);
+      const b = new THREE.Mesh(new THREE.BoxGeometry(0.17, hgt, 0.17), mat);
       b.position.set(slots[n][0], TILE_H + hgt / 2, slots[n][1]); b.castShadow = true; b.receiveShadow = true; b.userData.stop = stop.id;
-      const win = new THREE.Mesh(new THREE.BoxGeometry(0.205, 0.025, 0.205), glass);
+      const win = new THREE.Mesh(new THREE.BoxGeometry(0.175, 0.03, 0.175), glass);
       win.position.set(slots[n][0], TILE_H + hgt * 0.7, slots[n][1]); win.userData.stop = stop.id;
       g.add(b, win);
     }
     if (!district.next) {
       const crown = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.18, 4), new THREE.MeshStandardMaterial({ color: GOLD, metalness: 0.8, roughness: 0.2, emissive: 0x6b4a0c }));
-      crown.position.set(0.02, TILE_H + 0.14 + 3 * 0.09 + 0.12 + 0.09 + 0.08, -0.02); crown.userData.stop = stop.id; g.add(crown);
+      crown.position.set(0, TILE_H + 0.22 + 4 * 0.12 + 0.09, 0.02); crown.userData.stop = stop.id; g.add(crown);
     }
     // Buildings sit on the inner half so text stays readable
-    g.position.set(p.x, 0, p.z); g.scale.setScalar(0.9);
-    g.children.forEach((c) => { c.position.z = c.position.z * 0.5 - 0.22; c.position.x *= 0.95; });
+    g.position.set(p.x, 0, p.z - 0.3);
+    g.children.forEach((c) => { c.position.z *= 0.5; c.position.x *= 0.95; });
     this.scene.add(g); this.buildings.set(stop.id, g);
-    if (old) { g.scale.setScalar(0.01); this.tween(380, (k) => g.scale.setScalar(0.01 + 0.89 * this.ease(k))); }
+    if (old) { g.scale.setScalar(0.01); this.tween(380, (k) => g.scale.setScalar(0.01 + 0.99 * this.ease(k))); }
   }
 
   setVault(frac, milestone = 0) {
