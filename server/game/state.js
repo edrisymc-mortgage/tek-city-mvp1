@@ -100,6 +100,8 @@ function describeEffects(fx = {}) {
 
 async function me(session) {
   if (!session || !session.user_id) return { signedIn: false };
+  // Launchpad mode: playing needs a connected wallet. Anyone else (including old guest sessions) watches.
+  if (CFG.launchpad.enabled && session.auth_method !== "wallet") return { signedIn: false, watching: true };
   const uid = session.user_id;
   await db.query(`INSERT INTO player_resources (user_id, energy, build_credits) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, [uid, RULES.startEnergy, RULES.startCredits]);
   await db.query(`UPDATE users SET last_seen_at = now() WHERE id = $1 AND last_seen_at < now() - interval '1 minute'`, [uid]);

@@ -74,7 +74,6 @@ function renderAccount() {
   } else {
     add(slot, 
       walletEnabled() ? h("button", { class: "btn btn-primary btn-sm", onclick: () => openSignIn(true) }, "Connect wallet") : null,
-      h("button", { class: "btn btn-ghost btn-sm", onclick: () => openSignIn() }, "Guest"),
     );
   }
 }
@@ -92,9 +91,8 @@ function renderPlayer() {
   const el = clear($("#player"));
   if (!S.me.signedIn) {
     add(el, h("div", { class: "signin" },
-      h("p", {}, "Connect a Solana wallet to spin, launch coins and collect rewards. Use the same wallet you use on pump.fun and your profile links automatically."),
+      h("p", {}, "You're watching. Connect a Solana wallet to play: spin, launch coins and collect rewards. Use the same wallet you use on pump.fun and your profile links automatically."),
       walletEnabled() ? h("button", { class: "btn btn-primary", onclick: () => openSignIn(true) }, icon("wallet"), "Connect wallet") : null,
-      h("button", { class: "btn btn-ghost", onclick: () => openSignIn() }, "Look around as a guest"),
       h("p", { class: "small" }, "Connecting signs a message only. It is not a transaction and costs nothing.")));
     return;
   }
@@ -192,7 +190,7 @@ function renderMobile() {
   add(el,
     b("dice-5", "Spin", m.can.move, () => act("move"), sp.enabled ? `${sp.left || 0} left` : "Ready"),
     b("square", "Space", here && here.type !== "station" ? null : "Spin first", () => openDrawer(here.id), spaceName(S.city, m.position)),
-    b("wallet", "Profile", null, () => openProfile(), m.user.wallet ? m.user.wallet.short : "Guest"),
+    b("wallet", "Profile", null, () => openProfile(), m.user.wallet ? m.user.wallet.short : "--"),
     b("vault", "Pool", null, () => $("#vault").scrollIntoView({ behavior: "smooth", block: "center" }), S.lpInfo ? `${sol(S.lpInfo.rewards.poolLamports || 0)}` : "--"));
 }
 
@@ -277,19 +275,9 @@ function safetyNote() {
 
 function openSignIn(walletFirst = false) {
   const status = h("p", { class: "small", role: "status" });
-  const name = h("input", { id: "guest-name", maxlength: 20, minlength: 2, placeholder: "Display name", autocomplete: "nickname", value: "" });
-  const startGuest = async () => {
-    const v = name.value.trim();
-    if (!/^[A-Za-z0-9][A-Za-z0-9 _.-]{1,19}$/.test(v)) { status.textContent = "Use 2 to 20 letters, numbers, spaces, dots, dashes or underscores."; return; }
-    status.textContent = "Joining…";
-    try { const r = await api.post("/api/guest", { name: v }); S.me = r.me; closeModal(); await refreshAll(); toast(`Signed in as ${v}.`); maybeTutorial(); }
-    catch (e) { status.textContent = e.message; }
-  };
-  name.addEventListener("keydown", (e) => { if (e.key === "Enter") startGuest(); });
-  const guest = h("div", {}, h("h3", {}, "Or continue as a guest"), h("p", { class: "small" }, "Guests can look around and move on the board. Launching and buying needs a wallet."),
-    name, h("div", { class: "row" }, h("button", { class: "btn btn-ghost", onclick: startGuest }, "Continue as guest")));
   const wallets = walletEnabled() ? walletSection(status, { title: "Choose a Solana wallet" }) : h("p", { class: "small" }, "Wallet sign-in is turned off right now.");
-  openModal([h("h2", {}, "Connect to TEK CITY"), h("p", {}, "Use the wallet you trade with on pump.fun and your pump.fun profile links automatically."), wallets, h("hr"), guest, status]);
+  const watch = h("div", { class: "row" }, h("button", { class: "btn btn-ghost", onclick: closeModal }, "Just watch"));
+  openModal([h("h2", {}, "Connect to play"), h("p", {}, "Playing needs a Solana wallet. Use the wallet you trade with on pump.fun and your pump.fun profile links automatically. No wallet? You can still watch the board."), wallets, status, watch]);
   void walletFirst;
 }
 
@@ -336,7 +324,7 @@ function openProfile() {
   const pc = h("div", { class: "pumpcard" });
   openModal([
     h("h2", {}, "Profile"),
-    h("p", {}, u.wallet ? `Wallet ${u.wallet.short} on Solana ${S.config ? S.config.solanaNetwork : ""}.` : "Guest account. Connect a wallet to launch and buy coins."),
+    h("p", {}, u.wallet ? `Wallet ${u.wallet.short} on Solana ${S.config ? S.config.solanaNetwork : ""}.` : "Connect a wallet to play."),
     h("label", { class: "small" }, "Display name"), name,
     h("div", { class: "row" }, h("button", { class: "btn btn-ghost btn-sm", onclick: save }, "Save name")),
     pc,
