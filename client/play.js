@@ -3,6 +3,7 @@ import { io } from "socket.io-client";
 import { renderIcons } from "./lib/icons.js";
 import { api, ApiError } from "./lib/api.js";
 import { h, icon, $, $$, clear, avatar, fmtTime } from "./lib/dom.js";
+const add = (el, ...nodes) => el.append(...nodes.flat().filter((n) => n !== null && n !== undefined && n !== false));
 import { listWallets, onWalletsChanged, signInWith, disconnect, isMobile, phantomBrowseLink } from "./lib/wallet.js";
 
 const S = { city: null, me: { signedIn: false }, config: null, lb: "today", drawer: null, busy: false, wallet: null, lastRound: null };
@@ -57,10 +58,10 @@ function renderAccount() {
   const slot = clear($("#account-slot"));
   if (S.me.signedIn) {
     const u = S.me.user;
-    slot.append(h("button", { class: "profile-chip", onclick: openProfile, "aria-label": "Your profile" },
+    add(slot, h("button", { class: "profile-chip", onclick: openProfile, "aria-label": "Your profile" },
       avatar(u.name, u.seed), h("span", {}, u.name), u.wallet ? h("span", { class: "verified", title: `Verified wallet ${u.wallet.short}` }, icon("badge-check")) : null));
   } else {
-    slot.append(
+    add(slot, 
       h("button", { class: "btn btn-cream btn-sm", onclick: () => openSignIn() }, icon("play"), "Play as guest"),
       walletEnabled() ? h("button", { class: "btn btn-ghost btn-sm", onclick: () => openSignIn(true) }, icon("wallet"), "Connect wallet") : null,
     );
@@ -79,7 +80,7 @@ function actionButton({ id, ic, title, sub, cost, reason, onclick, primary }) {
 function renderPlayer() {
   const el = clear($("#player"));
   if (!S.me.signedIn) {
-    el.append(h("div", { class: "signin" },
+    add(el, h("div", { class: "signin" },
       h("p", {}, "Join the city to check in, ride the Transit Line, and build districts with everyone else."),
       h("button", { class: "btn btn-primary", onclick: () => openSignIn() }, icon("play"), "Play as guest"),
       walletEnabled() ? h("button", { class: "btn btn-ghost", onclick: () => openSignIn(true) }, icon("wallet"), "Sign in with wallet") : null,
@@ -87,7 +88,7 @@ function renderPlayer() {
     return;
   }
   const m = S.me, r = m.resources, here = stop(m.position);
-  el.append(
+  add(el, 
     h("div", { class: "res" },
       h("div", { class: "energy" }, h("span", { class: "k" }, icon("zap"), "Energy"), h("div", { class: "v" }, `${r.energy}`, h("small", { class: "muted" }, `/${r.maxEnergy}`))),
       h("div", { class: "credits" }, h("span", { class: "k" }, icon("coins"), "Credits"), h("div", { class: "v" }, fmt(r.build_credits))),
@@ -111,7 +112,7 @@ function renderEvent() {
   if (!e) return;
   if (e.kind === "crisis") {
     const d = district(e.target);
-    el.append(h("div", { class: "event crisis" },
+    add(el, h("div", { class: "event crisis" },
       h("div", { class: "eic" }, icon("siren")),
       h("div", {},
         h("span", { class: "tag" }, `City crisis · Severity ${e.severity}`),
@@ -123,7 +124,7 @@ function renderEvent() {
   }
   const reason = S.me.signedIn ? S.me.can.vote : "Join the city to vote.";
   const total = (e.tally || []).reduce((a, b) => a + b, 0);
-  el.append(h("div", { class: "event" },
+  add(el, h("div", { class: "event" },
     h("div", { class: "eic" }, icon("gavel")),
     h("div", {},
       h("span", { class: "tag" }, "City Brief · decided at the tick"),
@@ -164,13 +165,13 @@ function renderBoard() {
         h("span", { class: "xp" }, h("i", { style: { width: d.next ? pct(d.xp, d.next) : "100%" } })))
         : h("span", { class: "sic" }, icon(STOP_ICON[s.type] || "map-pin")),
       tokens);
-    board.append(tile);
+    add(board, tile);
   }
-  board.append(transitLine());
+  add(board, transitLine());
   requestAnimationFrame(drawLine);
   const legend = clear($("#legend"));
-  for (const [k, n] of Object.entries(c.neighborhoods)) legend.append(h("span", { style: { "--hc": n.color } }, h("i"), `${n.name} · ${n.levels} lv`));
-  legend.append(h("span", { class: "muted" }, "Dotted line: Transit Line route"));
+  for (const [k, n] of Object.entries(c.neighborhoods)) add(legend, h("span", { style: { "--hc": n.color } }, h("i"), `${n.name} · ${n.levels} lv`));
+  add(legend, h("span", { class: "muted" }, "Dotted line: Transit Line route"));
 }
 
 function transitLine() {
@@ -198,7 +199,7 @@ window.addEventListener("resize", () => requestAnimationFrame(drawLine));
 function renderGoal() {
   const g = S.city.goal, c = S.city;
   const el = clear($("#goal"));
-  el.append(
+  add(el, 
     h("div", { class: `stab ${c.stability <= 30 ? "low" : ""}` }, h("div", { class: "k" }, "Stability"), h("div", { class: "v" }, `${c.stability}%`), bar(`${c.stability}%`)),
     h("div", { class: "lv" }, h("div", { class: "k" }, "District levels"), h("div", { class: "v" }, `${g.levels} / ${g.levelsNeeded}`), bar(pct(g.levels, g.levelsNeeded))),
     h("div", { class: "vm" }, h("div", { class: "k" }, "Vault milestones"), h("div", { class: "v" }, `${g.milestones} / ${g.milestonesNeeded}`), bar(pct(g.milestones, g.milestonesNeeded))));
@@ -208,7 +209,7 @@ function renderGoal() {
   else if (c.dayStatus === "blackout") { ban.classList.add("show", "blackout"); ban.textContent = c.recovery ? `Blackout. Today's goal is lost. Recovery until round ${c.recovery}: contributions earn half XP.` : "Blackout. Today's goal is lost, but the city is back online. Build for tomorrow."; }
   $("#day-status").textContent = c.dayStatus === "active" ? "in progress" : c.dayStatus;
   const mini = clear($("#goal-mini"));
-  mini.append(h("p", {}, `Reach ${g.levelsNeeded} district levels and ${g.milestonesNeeded} Vault milestones before midnight UTC. Keep Stability above zero.`),
+  add(mini, h("p", {}, `Reach ${g.levelsNeeded} district levels and ${g.milestonesNeeded} Vault milestones before midnight UTC. Keep Stability above zero.`),
     h("p", { class: "mb0" }, `Resets at 00:00 UTC. ${96 - (c.round ? c.round.number : 0)} rounds left today.`));
 }
 
@@ -224,7 +225,7 @@ function renderVault() {
   const val = document.createElementNS(ns, "circle"); val.setAttribute("class", "val"); val.setAttribute("cx", 60); val.setAttribute("cy", 60); val.setAttribute("r", 50);
   val.setAttribute("stroke-dasharray", C.toFixed(1)); val.setAttribute("stroke-dashoffset", (C * (1 - frac)).toFixed(1));
   svg.append(trk, val);
-  el.append(h("div", { class: "vault-meter" }, svg, h("div", { class: "center" }, h("b", {}, `${Math.round(frac * 100)}%`), h("small", {}, `${within} / ${v.milestoneSize}`))),
+  add(el, h("div", { class: "vault-meter" }, svg, h("div", { class: "center" }, h("b", {}, `${Math.round(frac * 100)}%`), h("small", {}, `${within} / ${v.milestoneSize}`))),
     h("p", { class: "vault-info" }, "20% of every contribution fills the Vault. Each milestone unlocks a city-wide build boost and the Vault Keeper badge for active builders."),
     S.city.boosts.length ? h("div", { class: "boosts" }, S.city.boosts.map((b) => h("span", {}, icon("sparkles"), b))) : null);
   $("#vault-ms").textContent = `Milestone ${v.milestone}`;
@@ -233,8 +234,8 @@ function renderVault() {
 function renderLB() {
   const rows = S.city.leaderboard[S.lb];
   const el = clear($("#lb"));
-  if (!rows.length) { el.append(h("li", { class: "empty" }, "No Influence earned yet. Be the first.")); return; }
-  rows.forEach((r, i) => el.append(h("li", { class: S.me.signedIn && r.name === S.me.user.name ? "me" : "" },
+  if (!rows.length) { add(el, h("li", { class: "empty" }, "No Influence earned yet. Be the first.")); return; }
+  rows.forEach((r, i) => add(el, h("li", { class: S.me.signedIn && r.name === S.me.user.name ? "me" : "" },
     h("span", { class: "rk" }, `${i + 1}`), h("span", {}, r.name, r.kind === "wallet" ? " ✓" : ""), h("span", { class: "pts" }, fmt(r.influence)))));
   $$(".tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.lb === S.lb)));
 }
@@ -243,7 +244,7 @@ function renderMoods() {
   const el = clear($("#moods"));
   for (const m of Object.values(S.city.moods)) {
     const state = m.value >= 70 ? "hi" : m.value <= 30 ? "lo" : "";
-    el.append(h("div", { class: `mood ${state}` },
+    add(el, h("div", { class: `mood ${state}` },
       h("div", { class: "row" }, h("span", {}, m.name), h("span", { class: "mono" }, `${m.value}`)), bar(`${m.value}%`),
       h("small", {}, state === "hi" ? `Happy: ${m.high}` : state === "lo" ? `Unhappy: ${m.low}` : `Neutral. Over 70: ${m.high.toLowerCase()}.`)));
   }
@@ -251,18 +252,18 @@ function renderMoods() {
 
 function renderFeed() {
   const el = clear($("#feed"));
-  for (const a of S.city.activity) el.append(h("li", { class: a.kind }, h("time", {}, fmtTime(a.at)), h("span", {}, a.text)));
+  for (const a of S.city.activity) add(el, h("li", { class: a.kind }, h("time", {}, fmtTime(a.at)), h("span", {}, a.text)));
 }
 
 function renderMobile() {
   const el = clear($("#mobile-bar"));
   if (!S.me.signedIn) {
-    el.append(h("button", { onclick: () => openSignIn(), style: { "grid-column": "1 / -1" } }, icon("play"), "Join the city", h("small", {}, "Guest or wallet")));
+    add(el, h("button", { onclick: () => openSignIn(), style: { "grid-column": "1 / -1" } }, icon("play"), "Join the city", h("small", {}, "Guest or wallet")));
     return;
   }
   const m = S.me, here = stop(m.position);
   const b = (ic, label, reason, fn, sub) => h("button", { disabled: !!reason || S.busy, onclick: fn }, icon(ic), label, h("small", {}, reason || sub));
-  el.append(
+  add(el, 
     b("circle-check", "Check in", m.can.checkin, () => act("checkin"), "+Credits"),
     b("train-front", "Ride", m.can.move, () => act("move"), "2 Energy"),
     b("hammer", "Build", m.can.contribute, () => openDrawer(here && here.type === "district" ? here.id : firstOpenDistrict()), `${m.contributionsLeft} left`),
@@ -296,23 +297,23 @@ function renderDrawer() {
     h("span", { class: "muted ink2 small" }, d ? `Stop ${s.id} · Level ${d.level} of 5` : `Stop ${s.id}`),
     h("button", { class: "close", onclick: closeDrawer, "aria-label": "Close" }, icon("x")));
   const body = h("div", { class: "body" });
-  dr.append(header, body);
+  add(dr, header, body);
   if (!d) {
-    body.append(h("p", {}, s.text || ""), h("p", { class: "small ink2" }, "Special stops trigger when you land on them after riding the Transit Line. The server decides the roll."));
+    add(body, h("p", {}, s.text || ""), h("p", { class: "small ink2" }, "Special stops trigger when you land on them after riding the Transit Line. The server decides the roll."));
     renderIcons(dr);
     return;
   }
   const m = S.me;
   const crisis = S.city.event && S.city.event.kind === "crisis" && S.city.event.target === d.id ? S.city.event : null;
-  body.append(
+  add(body, 
     h("div", { class: "kv" },
       h("div", {}, h("div", { class: "k" }, "Level"), h("div", { class: "v" }, `${d.level} / 5`)),
       h("div", {}, h("div", { class: "k" }, "District XP"), h("div", { class: "v" }, d.next ? `${fmt(d.xp)} / ${fmt(d.next)}` : "Complete"))),
     h("div", { class: "xpbar" }, bar(d.next ? pct(d.xp, d.next) : "100%")),
     h("div", { class: "effect" }, h("b", {}, `${hood.name} effect: `), hood.effect),
     crisis ? h("div", { class: "reason" }, icon("siren"), `Crisis here: ${fmt(crisis.progress)} / ${fmt(crisis.requirement)} XP needed before the tick.`) : null);
-  if (!d.next) { body.append(h("p", {}, "This district is fully built for today. Help another district level up.")); renderIcons(dr); return; }
-  if (!m.signedIn) { body.append(h("button", { class: "btn btn-primary", onclick: () => { closeDrawer(); openSignIn(); } }, icon("play"), "Join to contribute")); renderIcons(dr); return; }
+  if (!d.next) { add(body, h("p", {}, "This district is fully built for today. Help another district level up.")); renderIcons(dr); return; }
+  if (!m.signedIn) { add(body, h("button", { class: "btn btn-primary", onclick: () => { closeDrawer(); openSignIn(); } }, icon("play"), "Join to contribute")); renderIcons(dr); return; }
   const max = Math.max(S.city.rules.minContribution, Math.min(S.city.rules.maxContribution, Math.floor(m.resources.build_credits / 5) * 5));
   amount = Math.max(S.city.rules.minContribution, Math.min(amount, max));
   const onSite = m.onSite === d.id;
@@ -325,7 +326,7 @@ function renderDrawer() {
   const step = (dlt) => { amount = Math.max(S.city.rules.minContribution, Math.min(max, amount + dlt)); updatePreview(); };
   updatePreview();
   const reason = m.can.contribute || (m.resources.build_credits < S.city.rules.minContribution ? "Not enough Build Credits." : null);
-  body.append(
+  add(body, 
     h("div", {}, h("div", { class: "k small ink2" }, "Contribution (Build Credits)"),
       h("div", { class: "amount" }, h("button", { onclick: () => step(-5), "aria-label": "Less" }, "−"), out, h("button", { onclick: () => step(5), "aria-label": "More" }, "+"))),
     h("div", { class: "presets" }, [25, 50, 100, 200].filter((v) => v <= max).map((v) => h("button", { onclick: () => { amount = v; updatePreview(); } }, String(v))), h("button", { onclick: () => { amount = max; updatePreview(); } }, `Max ${max}`)),
@@ -400,11 +401,11 @@ function walletSection(status, { purpose = "login", title = "Or sign in with a S
     clear(list);
     const ws = listWallets();
     for (const w of ws) {
-      list.append(h("button", { onclick: () => doWallet(w, status, purpose) }, w.icon ? h("img", { src: w.icon, alt: "" }) : icon("wallet"), w.name, h("span", { class: "muted small" }, " · signature only")));
+      add(list, h("button", { onclick: () => doWallet(w, status, purpose) }, w.icon ? h("img", { src: w.icon, alt: "" }) : icon("wallet"), w.name, h("span", { class: "muted small" }, " · signature only")));
     }
     if (!ws.length) {
-      if (isMobile()) list.append(h("a", { class: "btn btn-cream", href: phantomBrowseLink(), rel: "noopener" }, icon("wallet"), "Open TEK CITY in the Phantom app"));
-      else list.append(h("p", { class: "small ink2" }, "No Solana wallet detected in this browser. Install a wallet extension such as Phantom from its official site, then reload this page."));
+      if (isMobile()) add(list, h("a", { class: "btn btn-cream", href: phantomBrowseLink(), rel: "noopener" }, icon("wallet"), "Open TEK CITY in the Phantom app"));
+      else add(list, h("p", { class: "small ink2" }, "No Solana wallet detected in this browser. Install a wallet extension such as Phantom from its official site, then reload this page."));
     }
     renderIcons(list);
   };

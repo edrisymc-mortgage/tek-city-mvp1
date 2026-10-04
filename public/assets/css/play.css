@@ -22,10 +22,10 @@ body.play { background: var(--g950); }
 
 /* resources */
 .res { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.res div { background: var(--g850); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+.res > div { background: var(--g850); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
 .res .k { font-size: 11px; color: rgba(244,236,216,.6); display: flex; gap: 5px; align-items: center; }
 .res .k svg { width: 13px; height: 13px; }
-.res .v { font-family: var(--font-mono); font-size: 20px; margin-top: 2px; }
+.res .v { font-family: var(--font-mono); font-size: 20px; margin-top: 2px; } .res .v small { font-size: 12px; }
 .res .energy .k svg { color: var(--yellow); } .res .credits .k svg { color: var(--gold); } .res .influence .k svg { color: #8fb6dd; }
 .bar { height: 6px; background: rgba(244,236,216,.1); border-radius: 99px; overflow: hidden; }
 .bar > i { display: block; height: 100%; background: var(--yellow); border-radius: inherit; transition: width 500ms ease; }
@@ -252,3 +252,4 @@ body.play { background: var(--g950); }
   .toasts { bottom: 92px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+.lb li.empty { grid-template-columns: 1fr; }
