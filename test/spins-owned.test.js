@@ -1,5 +1,5 @@
 "use strict";
-// Default spin rules once OFFICIAL_TOKEN_MINT is set (SPIN_MODE=owned): 1 free starter spin, then each round
+// Optional spin rules (SPIN_MODE=owned, optional): 1 free starter spin, then each round
 // 1 spin per 500,000 TEK CITY owned (wallet + verified pump.fun profile). Vault jackpot once per 12 hours.
 const { test, before, after } = require("node:test");
 const assert = require("node:assert");
@@ -9,7 +9,7 @@ const db = require("../server/db/pool");
 
 const MINT = "So11111111111111111111111111111111111111112";
 let T, bal = 0; const orig = { bal: sol.tokenBalance };
-before(async () => { T = await boot({ FEATURE_LAUNCHPAD: "true", OFFICIAL_TOKEN_MINT: MINT }); sol.tokenBalance = async () => bal; });
+before(async () => { T = await boot({ FEATURE_LAUNCHPAD: "true", OFFICIAL_TOKEN_MINT: MINT, SPIN_MODE: "owned" }); sol.tokenBalance = async () => bal; });
 after(async () => { sol.tokenBalance = orig.bal; await T.close(); });
 
 async function player() { const c = T.client(); await c.start(); const w = wallet(); await walletLogin(c, w); const uid = (await db.query(`SELECT user_id FROM wallet_accounts WHERE address = $1`, [w.address])).rows[0].user_id; return { c, uid }; }

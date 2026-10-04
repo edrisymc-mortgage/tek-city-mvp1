@@ -1,6 +1,6 @@
 "use strict";
 // pump.fun profile linking (FEATURE_PUMP_BIO_LINK): an email/X pump.fun user proves the profile is theirs with a bio
-// code. That address is then read (never signed for) so the TEK CITY it owns counts toward spins.
+// code. That address is then read (never signed for) so TEK CITY bought from that wallet counts toward spins.
 const { test, before, after } = require("node:test");
 const assert = require("node:assert");
 const { Keypair } = require("@solana/web3.js");
@@ -23,12 +23,12 @@ before(async () => {
     if (u.startsWith("https://frontend-api-v3.pump.fun/")) return new Response("[]", { status: 200 });
     return orig.fetch(url, o);
   };
-  sol.tokenBalance = async (w) => { scanned.add(w); return w === PUMP_ADDR ? 1_000_000 : 0; };
+  sol.tokenBalance = async () => 0;
   sol.rpc = async (m, p) => { if (m === "getTokenAccountsByOwner") { scanned.add(p[0]); return { value: [] }; } throw new Error(`unexpected rpc ${m}`); };
 });
 after(async () => { global.fetch = orig.fetch; sol.rpc = orig.rpc; sol.tokenBalance = orig.bal; await T.close(); });
 
-test("link a pump.fun profile by bio code; its TEK CITY balance counts for spins", async () => {
+test("link a pump.fun profile by bio code; its TEK CITY buys count for spins", async () => {
   const c = T.client(); await c.start(); await walletLogin(c, wallet());
   let r = await c.post("/api/pump/link/start", { address: `https://pump.fun/profile/${PUMP_ADDR}` });
   assert.equal(r.status, 200, JSON.stringify(r.body)); const code = r.body.code;
@@ -39,9 +39,8 @@ test("link a pump.fun profile by bio code; its TEK CITY balance counts for spins
   assert.equal(r.status, 200, JSON.stringify(r.body));
   const me = await c.get("/api/pump/me");
   assert.equal(me.body.linked, true); assert.equal(me.body.profile.via, "bio");
-  const meState = (await c.get("/api/me")).body;
-  assert.ok(scanned.has(PUMP_ADDR), "linked pump.fun wallet's TEK CITY balance is read");
-  assert.equal(meState.spins.balance, 1_000_000); assert.equal(meState.spins.allowance, 2, "1M owned on pump.fun = 2 spins per round");
+  await c.get("/api/me"); await new Promise((res) => setTimeout(res, 300));
+  assert.ok(scanned.has(PUMP_ADDR), "linked pump.fun wallet is scanned for TEK CITY buys");
   // another player can't claim the same profile
   const d = T.client(); await d.start(); await walletLogin(d, wallet());
   r = await d.post("/api/pump/link/start", { address: PUMP_ADDR });

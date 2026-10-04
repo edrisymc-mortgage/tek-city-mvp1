@@ -168,7 +168,7 @@ export function renderSpins(el, S, ctx) {
       h("div", {}, h("span", { class: "k" }, "Bonus spins"), h("div", { class: "v" }, String((sp && sp.bonus) || 0)))));
   }
   add(el,
-    h("p", {}, sp.owned ? `Your first spin is free. Then every round you get 1 spin for every ${fmtN(per)} TEK CITY you own (connected wallet + linked pump.fun profile). You own ${fmtN(sp.balance)} = ${sp.allowance} per round. Passing START: +1.` : sp.enabled ? `Your first spin is free. Then 1 spin for every ${fmtN(per)} TEK CITY you buy, plus 1 every time you pass START.` : sp.holder ? `Wallets holding ${fmtN(per)}+ TEK CITY get 1 free spin each 15-minute round, plus 1 every time they pass START.` : "1 free spin each 15-minute round, plus 1 every time you pass START."),
+    h("p", {}, sp.owned ? `Your first spin is free. Then every round you get 1 spin for every ${fmtN(per)} TEK CITY you own (connected wallet + linked pump.fun profile). You own ${fmtN(sp.balance)} = ${sp.allowance} per round. Passing START: +1.` : sp.enabled ? `Your first spin is free. Then 1 spin for every ${fmtN(per)} TEK CITY you buy from your wallet or linked pump.fun profile (${fmtN(sp.bought)} bought so far, ${fmtN(Math.ceil(sp.next))} more for the next spin). Passing START: +1.` : sp.holder ? `Wallets holding ${fmtN(per)}+ TEK CITY get 1 free spin each 15-minute round, plus 1 every time they pass START.` : "1 free spin each 15-minute round, plus 1 every time you pass START."),
     h("button", { class: "btn btn-primary spin-btn", disabled: !!m.can.move || S.busy, onclick: () => ctx.act("move") }, icon("dice-5"), "Spin"),
     m.can.move ? h("p", { class: "small" }, m.can.move) : null,
     !m.user.wallet ? h("button", { class: "btn btn-ghost", onclick: ctx.linkWallet }, icon("wallet"), "Connect Solana Wallet") : null,
@@ -244,7 +244,7 @@ export function renderRewards(el, info) {
   add(el,
     h("ul", { class: "pool-rules" },
       h("li", {}, h("span", {}, "First spin"), h("b", {}, "Free")),
-      h("li", {}, h("span", {}, `Every ${per} TEK CITY owned`), h("b", {}, info.spinToken ? "+1 spin each round" : "When token is live")),
+      h("li", {}, h("span", {}, `Every ${per} TEK CITY bought`), h("b", {}, info.spinToken ? "+1 spin" : "When token is live")),
       h("li", {}, h("span", {}, "Pass START"), h("b", {}, "+1 spin")),
       h("li", {}, h("span", {}, "Vault jackpot (once per 12h)"), h("b", {}, info.vault && !info.vault.ready && info.vault.nextAt ? `Next ${new Date(info.vault.nextAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "Ready")),
       h("li", {}, h("span", {}, "TEK CITY fee on launches"), h("b", {}, "0%"))),

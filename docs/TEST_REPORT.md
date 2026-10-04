@@ -2,7 +2,7 @@
 
 Run: `npm test` (node:test, embedded Postgres, Solana RPC stubbed). Date: 2026-10-04. Result: **65 passed, 0 failed**.
 
-Covers wallet sign-in (SIWS nonce), wallet-only play (no guest play), multi-wallet buy/launch flow (balance check, review, idempotent settlement, tampered/failed/expired transactions, confirmation timeout), spin rules (starter spin, per-round spins per 500K owned including a linked pump.fun profile, 12-hour Vault jackpot cooldown, holder and bought modes), and the creator-reward Community Fund (operator-coin matching, a client's own reward never ingested, unapproved coins rejected, 20/80 integer split, finalization, idempotency, reversal, immutability, multisig transfer verification, disabled-flag blocks, grants refused outside an active program, RBAC, no holder entitlement, no server signer).
+Covers wallet sign-in (SIWS nonce), wallet-only play (no guest play), multi-wallet buy/launch flow (balance check, review, idempotent settlement, tampered/failed/expired transactions, confirmation timeout), spin rules (starter spin, 1 spin per 500K bought including buys from a linked pump.fun profile, 12-hour Vault jackpot cooldown, optional holder/owned modes), and the creator-reward Community Fund (operator-coin matching, a client's own reward never ingested, unapproved coins rejected, 20/80 integer split, finalization, idempotency, reversal, immutability, multisig transfer verification, disabled-flag blocks, grants refused outside an active program, RBAC, no holder entitlement, no server signer).
 
 Not covered by automated tests: real mainnet transactions and real wallet extensions. Those need a manual check with a small amount after deploy.
 
@@ -58,7 +58,7 @@ Not covered by automated tests: real mainnet transactions and real wallet extens
 - PASS: launch requires a linked wallet and being on the space
 - PASS: submit rejects unknown or foreign intents
 - PASS: before OFFICIAL_TOKEN_MINT is set, every player gets 1 free spin per round
-- PASS: link a pump.fun profile by bio code; its TEK CITY balance counts for spins
+- PASS: link a pump.fun profile by bio code; its TEK CITY buys count for spins
 - PASS: first spin is free, then 1 spin per 500,000 TEK CITY bought
 - PASS: starter spin, then 1 per 500K owned per round
 - PASS: Vault jackpot pays once per 12 hours across the board

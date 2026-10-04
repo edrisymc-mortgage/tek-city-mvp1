@@ -1,5 +1,5 @@
 "use strict";
-// SPIN_MODE=bought: first spin free, then 1 per 500,000 bought.
+// Default spin rules once OFFICIAL_TOKEN_MINT is set (SPIN_MODE=bought): first spin free, then 1 per 500,000 bought.
 const { test, before, after } = require("node:test");
 const assert = require("node:assert");
 const { boot, wallet, walletLogin } = require("./helpers");
@@ -9,7 +9,7 @@ const db = require("../server/db/pool");
 const MINT = "So11111111111111111111111111111111111111112";
 let T; const orig = { rpc: sol.rpc, bal: sol.tokenBalance };
 before(async () => {
-  T = await boot({ FEATURE_LAUNCHPAD: "true", OFFICIAL_TOKEN_MINT: MINT, SPIN_MODE: "bought" });
+  T = await boot({ FEATURE_LAUNCHPAD: "true", OFFICIAL_TOKEN_MINT: MINT });
   sol.tokenBalance = async () => 0;
   sol.rpc = async (m) => { if (m === "getTokenAccountsByOwner") return { value: [] }; throw new Error(`unexpected rpc ${m}`); };
 });
