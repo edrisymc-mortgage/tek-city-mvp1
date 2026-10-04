@@ -392,3 +392,4 @@ body.play { background: var(--g950); }
 .pool b { font: 800 1.5rem var(--font-display); color: var(--cream); }
 .pool-rules { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 8px; font-size: 13px; color: rgba(244,236,216,.8); }
 .pool-rules b { color: var(--yellow); font-family: var(--font-mono); }
+.lp-hide { display: none !important; }

@@ -198,7 +198,8 @@ function build(config, { notify }) {
     if (!SHAPES[type]) fail(404, "bad_action", "Unknown action.");
     const payload = v.obj(req.body || {}, SHAPES[type]);
     const key = v.idempotencyKey(req);
-    const spin = type === "move" ? await spins.requireSpin(req.session.user_id) : null;
+    let spin = type === "move" ? await spins.requireSpin(req.session.user_id) : null;
+    if (!spin && type === "move" && config.launchpad.enabled) spin = { perRound: true, earned: Number.MAX_SAFE_INTEGER, wallet: null };
     if ((spins.enabled() || config.launchpad.enabled) && (type === "checkin" || type === "contribute")) fail(410, "removed", "Game credits are gone. Launch or grow coins on the space you land on.");
     const result = await engine.performAction(req.session.user_id, type, payload, key, { ipHash: ipHash(req), spin });
     if (result.jackpot && !result.replayed && spin && spin.wallet) {

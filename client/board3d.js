@@ -14,8 +14,8 @@ function gridPos(i) {
 }
 const worldOf = (i) => { const g = gridPos(i); return new THREE.Vector3((g.col - 4) * CELL, 0, (g.row - 4) * CELL); };
 const CORNERS = new Set([0, 6, 12, 18]);
-const STOP_GLYPH = { station: "GO", vault: "VAULT", desk: "DISPATCH", workshop: "WORKSHOP", plaza: "PLAZA" };
-const STOP_SUB = { station: "+25 CREDITS", vault: "+10 VAULT", desk: "RANDOM BOOST", workshop: "+20 · +1 ENERGY", plaza: "+5 INFLUENCE" };
+const STOP_GLYPH = { station: "GO", vault: "JACKPOT", desk: "OPEN", workshop: "OPEN", plaza: "OPEN" };
+const STOP_SUB = { station: "START", vault: "WIN THE POOL", desk: "LAUNCH A COIN", workshop: "LAUNCH A COIN", plaza: "LAUNCH A COIN" };
 
 export async function loadFonts() {
   try { await Promise.all(["600 30px Fraunces", "800 60px Fraunces", "500 20px PlexMono"].map((f) => document.fonts.load(f))); } catch { /* fallback fonts */ }
@@ -76,7 +76,7 @@ function tileTexture(stop, district, hood) {
   x.font = "500 20px PlexMono, monospace";
   x.fillStyle = special ? (stop.type === "station" ? "rgba(21,33,27,.75)" : "rgba(244,236,216,.75)") : "#6a776e";
   if (district) {
-    x.fillText(district.next ? `LEVEL ${district.level}` : "COMPLETE", S / 2, 200);
+    x.fillText("LAUNCH A COIN", S / 2, 200);
     x.fillStyle = "rgba(21,33,27,.12)"; x.fillRect(48, 222, S - 96, 8);
     x.fillStyle = hood.color; x.fillRect(48, 222, (S - 96) * (district.next ? Math.min(1, district.xp / district.next) : 1), 8);
   } else {

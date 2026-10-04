@@ -40,6 +40,10 @@ function scheduleRefresh(delay = 250) { clearTimeout(pending); pending = setTime
 // ------------------------------------------------------------------ render
 function render() {
   if (!S.city) return;
+  if (LP() && LP().enabled) {
+    for (const id of ["#goal-mini", "#moods", "#lb", "#goal"]) { const e = $(id); const pnl = e && (e.closest(".panel") || e); if (pnl) pnl.classList.add("lp-hide"); }
+    const ph = $("#player-panel h3"); if (ph) ph.textContent = "Your player";
+  }
   renderTop(); renderAccount(); renderPlayer(); renderBoard(); renderEvent(); renderGoal(); renderVault(); renderLB(); renderMoods(); renderFeed(); renderMobile();
   if (S.drawer !== null) renderDrawer();
   renderIcons();
@@ -128,7 +132,7 @@ function renderEvent() {
   if (other) clear(other);
   const el = clear(MOBILE.matches || S.b3 ? $("#event-m") : $("#event"));
   const e = S.city.event;
-  if (!e) return;
+  if (!e || (LP() && LP().enabled)) return;
   if (e.kind === "crisis") {
     const d = district(e.target);
     add(el, h("div", { class: "event crisis" },

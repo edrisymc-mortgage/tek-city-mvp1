@@ -125,6 +125,7 @@ async function me(session) {
     checkin: general || why(String(p.last_checkin_round) !== rid, "Already checked in this round."),
     move: sp.enabled
       ? general || why(!!sp.wallet, "Link a wallet holding TEK CITY to spin.") || why(sp.left > 0, `No spins left. Every ${sp.tokensPerSpin.toLocaleString()} TEK CITY = 1 spin.`)
+      : CFG.launchpad.enabled ? general || why(String(p.last_move_round) !== rid, "Free spin used. Next one at the tick.")
       : general || why(String(p.last_move_round) !== rid, "Already moved this round.") || why(p.energy >= RULES.moveCost, `Needs ${RULES.moveCost} Energy.`),
     contribute: general || why(contribCount < RULES.contributionsPerRound, `All ${RULES.contributionsPerRound} contributions used this round.`) || why(p.energy >= RULES.contributeCost, "Needs 1 Energy.") || why(p.build_credits >= RULES.minContribution, `Needs at least ${RULES.minContribution} Build Credits.`),
     vote: general || why(ev && ev.kind === "brief", "No City Brief this round (crisis in progress).") || why(String(p.last_vote_round) !== rid, "Already voted this round."),
