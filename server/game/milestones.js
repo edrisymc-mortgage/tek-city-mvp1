@@ -67,6 +67,7 @@ async function tick() {
         results[i] = out; if (!out.done) all = false;
       }
       await db.query(`UPDATE milestones SET status = $2, results = $3, last_try = now(), done_at = CASE WHEN $2 = 'done' THEN now() ELSE done_at END WHERE id = $1`, [m.id, all ? "done" : "funding", JSON.stringify(results)]);
+      if (row.status !== "done" && all) await require("./rewards").milestoneReached(m.id).catch((e) => console.error("[milestones] earnings", String(e.message).slice(0, 120)));
       if (row.status !== "done" && all) await activity(null, "milestone", `TEK CITY hit $${(m.mcap / 1000).toLocaleString()}K market cap: ${m.title}.`);
     }
   } finally { running = false; }

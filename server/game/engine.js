@@ -279,7 +279,8 @@ async function doSpinMove({ c, round, p, userId, name, spin }) {
     const last = (await c.query(`SELECT hit_at FROM vault_hits ORDER BY hit_at DESC LIMIT 1`)).rows[0];
     const nextAt = last ? new Date(new Date(last.hit_at).getTime() + V.cooldownHours * 3600e3) : null;
     if (!nextAt || nextAt <= new Date()) {
-      await c.query(`INSERT INTO vault_hits (user_id, round_id, spins) VALUES ($1,$2,$3)`, [userId, round.id, V.spins]);
+      const hit = (await c.query(`INSERT INTO vault_hits (user_id, round_id, spins) VALUES ($1,$2,$3) RETURNING id`, [userId, round.id, V.spins])).rows[0];
+      await require("./rewards").earn(c, userId, "vault", `vault:${hit.id}`, 1);
       vault = { hit: true, spins: V.spins };
     } else vault = { hit: false, nextAt };
   }
@@ -295,6 +296,8 @@ async function doSpinMove({ c, round, p, userId, name, spin }) {
        bonus_total = bonus_total + $5
      WHERE user_id = $1`,
     [userId, pos, round.id, use, bonus]);
+  await require("./rewards").addPoints(c, userId, "spin");
+  if (passedGo) await require("./rewards").addPoints(c, userId, "pass_start");
   const coin = (await c.query(`SELECT name, symbol FROM space_coins WHERE stop_id = $1`, [pos])).rows[0];
   const label = stop.type === "vault" ? "the Vault" : stop.type === "station" ? "START" : coin ? `$${coin.symbol}` : `space ${pos}`;
   await activity(c, "move", `${name} spun a ${roll} and landed on ${label}.${passedGo ? " Passed START: +1 free spin." : ""}${vault && vault.hit ? ` Hit the Vault jackpot: +${vault.spins} spin${vault.spins === 1 ? "" : "s"}.` : ""}`);

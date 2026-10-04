@@ -95,12 +95,17 @@ function build(config, { notify, noScheduler = false }) {
         const nextAt = last ? new Date(new Date(last.hit_at).getTime() + V.cooldownHours * 3600e3) : null;
         return { cooldownHours: V.cooldownHours, spins: V.spins, lastHitAt: last ? last.hit_at : null, ready: !nextAt || nextAt <= new Date(), nextAt: nextAt && nextAt > new Date() ? nextAt : null };
       })(),
+      leaderboard: await require("../game/rewards").todayBoard(10),
       spinMode: config.spins.mint ? config.spins.mode : "per_round", starterSpins: config.spins.starterSpins,
       players: (await db.query(`SELECT COUNT(DISTINCT user_id)::int AS n FROM wallet_accounts WHERE unlinked_at IS NULL`)).rows[0].n,
     });
   }));
 
   // Public Community Fund page data. Wallets come from server config, never from frontend code.
+  // A player's own game rewards: points today, earnings waiting for a payout batch, payouts verified on chain.
+  r.get("/rewards/me", sessions.requireUser, limit("api_read", userKey), wrap(async (req, res) => {
+    res.json({ ...(await require("../game/rewards").mine(req.session.user_id)), payoutsOn: !!config.communityFund.enabled });
+  }));
   r.get("/community-fund", limit("api_read", ipKey), wrap(async (_req, res) => {
     res.json(await require("../chain/creatorRewards").publicSummary({ full: true }));
   }));
@@ -269,6 +274,7 @@ function build(config, { notify, noScheduler = false }) {
             [it.stop_id, it.mint, meta.name, meta.symbol, meta.imageUri, meta.uri, it.image_bytes, meta.mime, uid, it.wallet, sig, it.lamports, true]);
           await c.query(`INSERT INTO coin_txs (signature, kind, user_id, wallet, stop_id, mint, lamports, round_id) VALUES ($1,'launch',$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING`, [sig, uid, it.wallet, it.stop_id, it.mint, it.lamports, round && round.id]);
           await addXp(c, it.stop_id, it.lamports);
+          await require("../game/rewards").addPoints(c, uid, cur ? "takeover" : "launch");
           await activity(c, "launch", `${user.display_name} launched $${meta.symbol} on ${sp}${cur ? `, taking the space from $${cur.symbol}` : ""}.`);
         }
         await c.query(`UPDATE coin_launches SET status = $2, updated_at = now(), processed_at = now() WHERE intent_id = $1`, [it.id, ok ? "placed" : "not_placed"]);
@@ -289,6 +295,7 @@ function build(config, { notify, noScheduler = false }) {
         await c.query(`INSERT INTO coin_txs (signature, kind, user_id, wallet, stop_id, mint, lamports, round_id) VALUES ($1,'grow',$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING`, [sig, uid, it.wallet, it.stop_id, it.mint, it.lamports, round && round.id]);
         await c.query(`UPDATE space_coins SET grown_lamports = grown_lamports + $2, grow_count = grow_count + 1, top_buy_lamports = GREATEST(top_buy_lamports, $2) WHERE stop_id = $1 AND mint = $3`, [it.stop_id, it.lamports, it.mint]);
         await addXp(c, it.stop_id, it.lamports);
+        await require("../game/rewards").addPoints(c, uid, "grow");
         await activity(c, "grow", `${user.display_name} bought $${meta.symbol} with ${sol9(it.lamports)} SOL on ${sp}.`);
         return true;
       });

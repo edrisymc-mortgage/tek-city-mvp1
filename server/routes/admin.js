@@ -1,7 +1,7 @@
 "use strict";
 // Admin API. Disabled (404) unless ADMIN_WALLET_ALLOWLIST is configured. Requires a wallet session for an
 // allowlisted address AND a fresh signature (re-auth) within the last 10 minutes. Every action is audited.
-// There is deliberately no funds, treasury, or transfer control here.
+// Fund operations here only BUILD transactions; a human signs each one in their own wallet. The server holds no keys.
 const express = require("express");
 const db = require("../db/pool");
 const flags = require("../flags");
@@ -300,6 +300,24 @@ function build(config, { notify }) {
   r.post("/community/grants/:id/verify-payment", role("grant_approver"), wrap(async (req, res) => {
     const id = idOf(req); const b = v.obj(req.body, { signature: SIG });
     await done(req, res, "community.grant_verify", await cr.verifyGrantPayment(id, b.signature, req.admin.wallet), { id, signature: b.signature });
+  }));
+
+  // One-tap fund operations. The server builds the transaction; the admin approves it in the wallet that owns the
+  // funds (operator wallet for claim / 20% transfer, treasury wallet for player payouts). No keys on the server.
+  const ops = require("../chain/fundOps");
+  r.get("/community/ops", anyRole, wrap(async (req, res) => { res.json({ ...(await ops.overview()), signedInAs: req.admin.wallet }); }));
+  r.post("/community/ops/claim", role("ledger_reconciler"), wrap(async (req, res) => {
+    v.obj(req.body || {}, {}); await done(req, res, "community.op_claim", await ops.buildClaim(req.admin.wallet), {});
+  }));
+  r.post("/community/ops/sweep", role("ledger_reconciler"), wrap(async (req, res) => {
+    v.obj(req.body || {}, {}); await done(req, res, "community.op_sweep", await ops.buildSweep(req.admin.wallet), {});
+  }));
+  r.post("/community/ops/payout", role("grant_approver"), wrap(async (req, res) => {
+    v.obj(req.body || {}, {}); await done(req, res, "community.op_payout", await ops.buildPayout(req.admin.wallet), {});
+  }));
+  r.post("/community/ops/:id/submit", role("ledger_reconciler", "grant_approver"), wrap(async (req, res) => {
+    const id = idOf(req); const b = v.obj(req.body, { signedTx: { type: "string", min: 100, max: 4000, trim: false } });
+    await done(req, res, "community.op_submit", await ops.submit(id, b.signedTx, req.admin.wallet), { id });
   }));
 
   return r;

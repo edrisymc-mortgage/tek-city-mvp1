@@ -2,7 +2,7 @@
 import "./site.js";
 import { api } from "./lib/api.js";
 import { h, $, clear } from "./lib/dom.js";
-import { listWallets, signInWith } from "./lib/wallet.js";
+import { listWallets, signInWith, walletFor, signTx, shortAddr } from "./lib/wallet.js";
 import { renderIcons } from "./lib/icons.js";
 
 const root = $("#admin-root");
@@ -46,7 +46,52 @@ async function load() {
       btn("Load support reports", async () => show((await api.get("/api/admin/support")).reports)),
       h("a", { class: "btn btn-ghost btn-sm", href: "/api/admin/export" }, "Download JSON backup")),
     h("pre", { id: "dump", class: "mono small" }));
+  const fund = h("div", { class: "mt32" }); root.insertBefore(fund, root.children[1] || null);
+  renderFund(fund).catch((e) => { fund.textContent = e.message; });
   renderIcons(root);
+}
+
+// Community Fund: claim creator rewards, move the fund share (max 20%) to the treasury, pay players.
+// Every button builds a transaction on the server; you approve it in your own wallet. Nothing moves without that.
+const SOL = (l) => `${(Number(l || 0) / 1e9).toLocaleString(undefined, { maximumFractionDigits: 4 })} SOL`;
+async function renderFund(el) {
+  let o;
+  try { o = await api.get("/api/admin/community/ops"); }
+  catch (e) { el.append(h("h2", {}, "Community Fund"), h("p", { class: "small" }, e.code === "missing_role" ? "This wallet has no Community Fund role." : e.message)); return; }
+  const status = h("p", { class: "form-status", role: "status" });
+  const as = o.signedInAs, isOp = as === o.operatorWallet, isTr = as === o.treasuryWallet;
+  const run = (path) => async (ev) => {
+    ev.target.disabled = true; status.textContent = "Preparing…";
+    try {
+      const b = await api.post(path, {});
+      status.textContent = `${b.summary} Approve it in your wallet.`;
+      const w = await walletFor(b.wallet);
+      const signed = await signTx(w, b.transaction, "mainnet-beta");
+      status.textContent = "Sending…";
+      const r = await api.post(`/api/admin/community/ops/${b.opId}/submit`, { signedTx: signed });
+      status.textContent = r.pending ? r.message : `Done. Confirmed on Solana: ${r.signature}`;
+      setTimeout(() => { clear(el); renderFund(el); }, 2500);
+    } catch (e) { status.textContent = /reject|denied|cancel/i.test(String(e.message)) ? "You declined in your wallet. Nothing moved." : e.message; ev.target.disabled = false; }
+  };
+  const earn = (cat) => ((o.earningsPending.find((x) => x.category === cat) || { n: 0 }).n);
+  el.append(
+    h("h2", {}, "Community Fund"),
+    h("p", { class: "small" }, `Fund share: ${o.bps / 100}% of verified creator rewards (never more than 20%). Signed in as ${shortAddr(as)}${isOp ? " (operator wallet)" : isTr ? " (treasury wallet)" : ""}.`),
+    h("table", { class: "simple" }, h("tbody", {},
+      h("tr", {}, h("td", {}, "Fund share waiting to move"), h("td", {}, SOL(o.fundShareWaitingLamports))),
+      h("tr", {}, h("td", {}, "Rewards seen, waiting for Solana to finalize"), h("td", {}, String(o.detectedAwaitingFinalization))),
+      h("tr", {}, h("td", {}, "Treasury: verified fund SOL not yet paid"), h("td", {}, SOL(o.treasury.ledgerLamports))),
+      h("tr", {}, h("td", {}, "Available for payouts"), h("td", {}, SOL(o.treasury.availableLamports))),
+      h("tr", {}, h("td", {}, "Player earnings waiting"), h("td", {}, `Leaderboard ${earn("leaderboard")} · Vault ${earn("vault")} · Milestones ${earn("milestone")}`)),
+      h("tr", {}, h("td", {}, "Player payouts"), h("td", {}, o.enabled ? (o.paused ? "Paused" : "On") : "Off (COMMUNITY_FUND_ENABLED=false)")))),
+    h("div", { class: "copy-row mt16" },
+      h("button", { class: "btn btn-ghost btn-sm", disabled: !isOp, title: isOp ? "" : "Sign in with the operator wallet", onclick: run("/api/admin/community/ops/claim") }, "1. Claim creator rewards"),
+      h("button", { class: "btn btn-primary btn-sm", disabled: !isOp, title: isOp ? "" : "Sign in with the operator wallet", onclick: run("/api/admin/community/ops/sweep") }, `2. Move ${o.bps / 100}% to the fund`),
+      h("button", { class: "btn btn-primary btn-sm", disabled: !isTr || !o.enabled, title: isTr ? "" : "Sign in with the treasury wallet", onclick: run("/api/admin/community/ops/payout") }, "3. Pay players")),
+    status,
+    h("h3", { class: "mt16" }, "Recent fund transactions"),
+    h("table", { class: "simple" }, h("tbody", {}, o.ops.map((x) => h("tr", {}, h("td", {}, x.kind), h("td", {}, SOL(x.lamports)), h("td", {}, x.status),
+      h("td", {}, x.signature ? h("a", { href: `https://solscan.io/tx/${x.signature}`, target: "_blank", rel: "noopener" }, `${x.signature.slice(0, 8)}…`) : x.error || ""))))));
 }
 function show(rows) { $("#dump").textContent = JSON.stringify(rows, null, 2); }
 

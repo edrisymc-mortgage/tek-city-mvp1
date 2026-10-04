@@ -21,6 +21,7 @@ function communityFund(env) {
   if (op && tr && op === tr) errors.push("OPERATOR_CREATOR_REWARD_WALLET and COMMUNITY_TREASURY_WALLET must be different");
   if (mint && (mint === op || mint === tr)) errors.push("OFFICIAL_TOKEN_MINT must not equal either wallet address");
   if (!Number.isInteger(bpsC) || !Number.isInteger(bpsO) || bpsC + bpsO !== 10000) errors.push("COMMUNITY_FUND_ALLOCATION_BPS and OPERATOR_REWARD_RETAINED_BPS must be non-negative integers summing to 10000");
+  if (Number.isInteger(bpsC) && bpsC > 2000) errors.push("COMMUNITY_FUND_ALLOCATION_BPS can't be more than 2000 (20%). The Community Fund never takes more than 20% of creator rewards");
   if (env.REWARDS_WALLET_SECRET) errors.push("REWARDS_WALLET_SECRET is set but ignored. Delete it from Render: the server must not hold a signer");
   const blocking = errors.filter((e) => !e.startsWith("REWARDS_WALLET_SECRET"));
   return {
@@ -30,6 +31,14 @@ function communityFund(env) {
     paused: String(env.COMMUNITY_FUND_PAUSED || "false").trim().toLowerCase() === "true",
     policyUrl: /^https:\/\/[^\s<>"]+$/.test(env.COMMUNITY_FUND_POLICY_URL || "") ? env.COMMUNITY_FUND_POLICY_URL : "",
     errors,
+    // Player payouts from the treasury (one-tap approval in the treasury wallet).
+    payout: {
+      batchBps: Math.min(10000, Math.max(0, intStr(env.PAYOUT_BATCH_BPS, 5000) || 0)),          // share of the available fund one batch may pay
+      split: { leaderboard: intStr(env.PAYOUT_LEADERBOARD_BPS, 5000) || 0, vault: intStr(env.PAYOUT_VAULT_BPS, 2500) || 0, milestone: intStr(env.PAYOUT_MILESTONE_BPS, 2500) || 0 },
+      minLamports: intStr(env.PAYOUT_MIN_LAMPORTS, 1_000_000) || 0,                                // 0.001 SOL; smaller amounts wait for the next batch
+      maxRecipients: Math.min(18, Math.max(1, intStr(env.PAYOUT_MAX_RECIPIENTS, 15) || 15)),       // per transaction
+      reserveLamports: intStr(env.TREASURY_RESERVE_LAMPORTS, 10_000_000) || 0,                     // always left in the treasury
+    },
     // accounting (detect + calculate, never transfer) runs only when both wallets are set and the config is valid
     accounting: !!op && !!tr && blocking.length === 0,
   };

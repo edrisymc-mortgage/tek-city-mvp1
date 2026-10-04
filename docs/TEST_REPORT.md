@@ -1,6 +1,6 @@
 # Test report
 
-Run: `npm test` (node:test, embedded Postgres, Solana RPC stubbed). Date: 2026-10-04. Result: **65 passed, 0 failed**.
+Run: `npm test` (node:test, embedded Postgres, Solana RPC stubbed). Date: 2026-10-04. Result: **71 passed, 0 failed**.
 
 Covers wallet sign-in (SIWS nonce), wallet-only play (no guest play), multi-wallet buy/launch flow (balance check, review, idempotent settlement, tampered/failed/expired transactions, confirmation timeout), spin rules (starter spin, 1 spin per 500K bought including buys from a linked pump.fun profile, 12-hour Vault jackpot cooldown, optional holder/owned modes), and the creator-reward Community Fund (operator-coin matching, a client's own reward never ingested, unapproved coins rejected, 20/80 integer split, finalization, idempotency, reversal, immutability, multisig transfer verification, disabled-flag blocks, grants refused outside an active program, RBAC, no holder entitlement, no server signer).
 
@@ -20,6 +20,7 @@ Not covered by automated tests: real mainnet transactions and real wallet extens
 - PASS: feature flags: mainnet and on-chain actions are locked off
 - PASS: admin API is disabled when no allowlist is configured
 - PASS: security headers: CSP, frame denial, no x-powered-by
+- PASS: mainnet sign-in message uses a SIWS chain id wallets accept
 - PASS: integer split: 20% community, 80% operator, remainder stays with operator
 - PASS: config validation keeps the three addresses separate and rejects server-held signers
 - PASS: a finalized 1.00 SOL reward on an approved operator coin allocates 0.20 / 0.80
@@ -38,6 +39,11 @@ Not covered by automated tests: real mainnet transactions and real wallet extens
 - PASS: RBAC: admins without a role can't touch Community Fund records
 - PASS: holding TEK CITY gives no entitlement to Community Fund assets
 - PASS: the server has no way to sign or send Community Fund transfers
+- PASS: the Community Fund share can never be set above 20%
+- PASS: payout plan splits by category and weight, drops dust, caps recipients
+- PASS: sweep: operator wallet sends exactly the 20% share to the treasury; records only after Solana confirms
+- PASS: payouts: earnings from the leaderboard, Vault and milestones are paid from the treasury after approval
+- PASS: an unsigned payout that expires releases its earnings for the next batch
 - PASS: check-in is once per round and rewards are decided by the server
 - PASS: move: server rolls, spends energy, cannot be replayed into extra moves
 - PASS: idempotency key cannot be reused for a different action

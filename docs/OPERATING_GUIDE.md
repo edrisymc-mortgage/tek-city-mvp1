@@ -44,3 +44,31 @@ Each confirmed event gets exactly one allocation: community = floor(amount × 20
 - Enable the fund, move funds, or publish financial or promotional claims without explicit owner approval.
 - Show accrued amounts as received, or enter a signature that isn't real.
 - Count rewards from a player's coin, or from any coin that isn't `active` in `operator_coins`.
+
+## One-tap Community Fund operations (admin console, /admin)
+
+The server builds each transaction; you approve it in the wallet that owns the funds. The server holds no keys.
+
+1. **Claim creator rewards**: sign in with the operator wallet (`OPERATOR_CREATOR_REWARD_WALLET`). pump.fun builds the
+   claim; the server refuses it if it would send SOL out of the operator wallet. After Solana finalizes it (about a
+   minute) the reward is recorded and the Community Fund share is calculated: `floor(reward * COMMUNITY_FUND_ALLOCATION_BPS / 10000)`.
+   `COMMUNITY_FUND_ALLOCATION_BPS` can never be above 2000 (20%); a higher value disables the fund.
+2. **Move the fund share**: still as the operator wallet. One transfer, operator -> treasury, for exactly the sum of the
+   calculated shares. Allocations become `transferred` when confirmed and `verified` when finalized.
+3. **Pay players**: sign in with the treasury wallet (`COMMUNITY_TREASURY_WALLET`). Needs `COMMUNITY_FUND_ENABLED=true`.
+   A batch pays up to `PAYOUT_BATCH_BPS` (50%) of the available fund: verified fund SOL at the treasury minus everything
+   already committed or paid, and never more than the treasury's on-chain balance minus `TREASURY_RESERVE_LAMPORTS`.
+   Split: leaderboard `PAYOUT_LEADERBOARD_BPS` (50%), Vault `PAYOUT_VAULT_BPS` (25%), milestones `PAYOUT_MILESTONE_BPS` (25%).
+   Up to `PAYOUT_MAX_RECIPIENTS` (15) wallets per transaction; amounts under `PAYOUT_MIN_LAMPORTS` wait for a later batch.
+   Grants are marked paid only after the payment finalizes on Solana.
+
+Unsigned requests expire after 2 minutes and release everything they reserved.
+
+### What players earn
+- **Daily leaderboard**: points for spins (1), passing START (2), launches (10), buy-ins (3) and takeovers (15). When a
+  UTC day ends, the top 3 with a wallet earn weights 5 / 3 / 2.
+- **Vault jackpot**: the player who hits it (once every 12 hours across the board) earns weight 1.
+- **Market-cap milestones**: every player with a wallet who was active in the previous 24 hours earns weight 1.
+
+Admin access: `ADMIN_WALLET_ALLOWLIST=<operator>,<treasury>` and
+`ADMIN_WALLET_ROLES=<operator>:ledger_reconciler|coin_approver;<treasury>:grant_approver|program_admin`.

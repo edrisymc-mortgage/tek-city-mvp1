@@ -352,6 +352,16 @@ function openProfile() {
   const save = async () => { try { const r = await api.post("/api/profile", { name: name.value.trim() }); S.me = r.me; status.textContent = "Saved."; await refreshAll(); } catch (e) { status.textContent = e.message; } };
   const signOut = async () => { try { await api.post("/api/auth/logout", {}); await disconnect(S.wallet); S.me = { signedIn: false }; S.pump = null; closeModal(); await refreshAll(); toast(u.wallet ? "Wallet disconnected." : "Signed out.", "info"); } catch (e) { status.textContent = e.message; } };
   const pc = h("div", { class: "pumpcard" });
+  const rw = h("div", { class: "pumpcard" }, h("span", { class: "lbl" }, "Your rewards"), h("p", { class: "small mb0" }, "Loading…"));
+  api.get("/api/rewards/me").then((r) => {
+    clear(rw);
+    const n = (c) => ((r.pending.find((x) => x.category === c) || { n: 0 }).n);
+    rw.append(...[h("span", { class: "lbl" }, "Your rewards"),
+      h("p", { class: "small mb0" }, `${r.pointsToday} points today. The top 3 each day, Vault jackpot hits and market-cap milestones earn a share of Community Fund payouts.`),
+      h("p", { class: "small mb0" }, `Waiting for the next payout: ${n("leaderboard")} leaderboard, ${n("vault")} Vault, ${n("milestone")} milestone.`),
+      !r.payoutsOn ? h("p", { class: "small mb0 muted" }, "Payouts haven't started yet.") : null,
+      ...(r.paid || []).slice(0, 5).map((p) => h("p", { class: "small mb0" }, h("a", { href: `https://solscan.io/tx/${p.signature}`, target: "_blank", rel: "noopener" }, `Paid ${(Number(p.lamports) / 1e9).toLocaleString(undefined, { maximumFractionDigits: 4 })} SOL`)))].filter(Boolean));
+  }).catch(() => { clear(rw); });
   openModal([
     h("h2", {}, "Profile"),
     u.wallet ? h("div", { class: "wallet-state" },
@@ -363,6 +373,7 @@ function openProfile() {
     h("label", { class: "small" }, "Display name"), name,
     h("div", { class: "row" }, h("button", { class: "btn btn-ghost btn-sm", onclick: save }, "Save name")),
     pc,
+    u.wallet ? rw : null,
     !u.wallet && walletEnabled() ? walletSection(status, { purpose: "login", title: "Connect Solana Wallet" }) : null,
     status,
     h("div", { class: "row" }, h("button", { class: "btn btn-ghost", onclick: closeModal }, "Close"), h("button", { class: "btn btn-red", onclick: signOut }, icon("log-out"), u.wallet ? "Disconnect" : "Sign out")),

@@ -22,6 +22,7 @@ async function createApp(config, opts = {}) {
   require("./chain/pump").configure(config);
   require("./chain/rewards").configure(config);
   require("./chain/creatorRewards").configure(config);
+  require("./chain/fundOps").configure(config);
   for (const e of config.communityFund.errors) console.warn(`[community-fund] ${e}`);
   require("./game/spins").configure(config);
   require("./game/milestones").configure(config);
@@ -130,11 +131,19 @@ async function createApp(config, opts = {}) {
     require("./chain/creatorRewards").tick().catch((e) => console.error("[creator-rewards]", String(e.message).slice(0, 160)));
   }, 5 * 60e3);
   if (rewardsTimer) rewardsTimer.unref();
+  // One-tap fund ops (claim / 20% sweep / player payouts): follow sent transactions to finalization, close finished
+  // leaderboard days. Still no keys: these only read Solana and update records.
+  const fundTimer = opts.noScheduler || !config.launchpad.enabled ? null : setInterval(() => {
+    require("./chain/fundOps").tick().catch((e) => console.error("[fund-ops]", String(e.message).slice(0, 160)));
+  }, 30e3);
+  if (fundTimer) fundTimer.unref();
+  if (!opts.noScheduler) require("./chain/fundOps").ensureOfficialCoin().catch((e) => console.error("[fund-ops] official coin", String(e.message).slice(0, 160)));
 
   async function close() {
     if (timer) clearInterval(timer);
     clearInterval(sweeper);
     if (rewardsTimer) clearInterval(rewardsTimer);
+    if (fundTimer) clearInterval(fundTimer);
     io.close();
     await new Promise((r) => server.close(() => r()));
     await db.close();

@@ -243,7 +243,10 @@ async function verifyTransfer(allocationId, signature, actor) {
   if (al.allocation_status === "verified") return { ok: al.community_transfer_signature === signature, code: "already", message: "Already verified." };
   if (!["calculated", "awaiting_multisig_transfer", "transferred"].includes(al.allocation_status)) return { ok: false, code: "bad_status", message: `Allocation is ${al.allocation_status}.` };
   if (al.community_transfer_signature && al.community_transfer_signature !== signature) return { ok: false, code: "signature_mismatch", message: "A different transfer is already recorded for this allocation." };
-  const used = (await db.query(`SELECT 1 FROM creator_reward_allocations WHERE community_transfer_signature = $1 AND id <> $2 UNION SELECT 1 FROM community_reward_grants WHERE payment_transaction_signature = $1`, [signature, al.id])).rowCount;
+  // One sweep transaction may settle several allocations; it must never also be a grant payment or another sweep.
+  const used = (await db.query(`SELECT 1 FROM creator_reward_allocations a WHERE a.community_transfer_signature = $1 AND a.id <> $2
+      AND NOT EXISTS (SELECT 1 FROM fund_ops o WHERE o.signature = $1 AND o.kind = 'sweep' AND $2 = ANY(o.allocation_ids) AND a.id = ANY(o.allocation_ids))
+    UNION SELECT 1 FROM community_reward_grants WHERE payment_transaction_signature = $1`, [signature, al.id])).rowCount;
   if (used) return { ok: false, code: "signature_used", message: "That transaction is already recorded elsewhere." };
   const v = await verifyMovement(signature, al.operator_creator_reward_wallet, al.community_treasury_wallet, al.asset_mint, al.community_fund_amount_base_units);
   if (!v.ok) { await audit(null, { actorWallet: actor, action: "community.transfer_check_failed", target: String(al.id), details: { signature, code: v.code } }); return v; }
@@ -320,7 +323,9 @@ async function verifyGrantPayment(id, signature, actor) {
   const g = (await db.query(`SELECT * FROM community_reward_grants WHERE id = $1`, [id])).rows[0];
   if (!g) return { ok: false, code: "not_found", message: "Grant not found." };
   if (g.status !== "payment_proposed") return { ok: false, code: "bad_status", message: `Grant is ${g.status}.` };
-  const used = (await db.query(`SELECT 1 FROM community_reward_grants WHERE payment_transaction_signature = $1 UNION SELECT 1 FROM creator_reward_allocations WHERE community_transfer_signature = $1`, [signature])).rowCount;
+  const used = (await db.query(`SELECT 1 FROM community_reward_grants g WHERE g.payment_transaction_signature = $1 AND g.id <> $2
+      AND NOT EXISTS (SELECT 1 FROM fund_ops o WHERE o.signature = $1 AND o.kind = 'payout' AND $2 = ANY(o.grant_ids) AND g.id = ANY(o.grant_ids))
+    UNION SELECT 1 FROM creator_reward_allocations WHERE community_transfer_signature = $1`, [signature, id])).rowCount;
   if (used) return { ok: false, code: "signature_used", message: "That transaction is already recorded." };
   const v = await verifyMovement(signature, F().treasuryWallet, g.recipient_wallet, g.asset_mint, g.award_amount_base_units);
   if (!v.ok) return v;
